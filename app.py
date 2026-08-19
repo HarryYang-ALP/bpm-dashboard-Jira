@@ -10,7 +10,7 @@ from requests.auth import HTTPBasicAuth
 st.set_page_config(
     page_title="BPM Team Project Management Dashboard",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # 隱藏 Streamlit 預設的 header/footer，讓 dashboard 滿版呈現
@@ -225,7 +225,7 @@ html = html.replace("__SNAPSHOT_DATETIME__", today_str)
 html = html.replace("__TASKS_JSON__", tasks_json)
 html = html.replace("__GEMINI_API_KEY__", st.secrets.get("GEMINI_API_KEY", ""))
 
-components.html
+components.html(html, height=1200, scrolling=False)
 
 # ── AD 小幫手 Sidebar（可讀取專案資料）──
 import requests as _req, json as _json
@@ -310,60 +310,3 @@ BPM知識庫：登入用Azure AD Login / 代理人設定：Personal>Account>Task
 
 # ── AD 小幫手 Sidebar ──
 import requests as _req, json as _json
-
-with st.sidebar:
-    st.image("https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png", width=60)
-    st.markdown("### AD 小幫手")
-    st.caption("詢問專案進度、任務狀況")
-    st.divider()
-
-    if "ad_msg" not in st.session_state:
-        st.session_state.ad_msg = []
-    if "ad_hist" not in st.session_state:
-        st.session_state.ad_hist = []
-
-    for m in st.session_state.ad_msg:
-        with st.chat_message(m["role"]):
-            st.markdown(m["content"])
-
-    if prompt := st.chat_input("問我專案進度...", key="ad_input"):
-        st.session_state.ad_msg.append({"role":"user","content":prompt})
-        st.session_state.ad_hist.append({"role":"user","parts":[{"text":prompt}]})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        _tasks_json = _json.dumps([{
-            "專案":t.get("proj",""),
-            "任務":t.get("task",""),
-            "狀態":t.get("status",""),
-            "負責人":t.get("owner",""),
-            "進度":str(t.get("progress",""))+"%",
-            "結束日":t.get("end",""),
-            "逾期天數":t.get("overdue_days",0),
-            "須決議":t.get("decide",""),
-            "優先":t.get("prio",""),
-            "進度說明":t.get("prog_note","")
-        } for t in tasks], ensure_ascii=False)
-
-        _sys = f"""你是 BPM Team 的專案進度助理。
-請根據以下 Jira 任務資料，用繁體中文回答使用者的問題。
-資料快照時間：{today_str}
-
-任務資料：
-{_tasks_json}"""
-
-        with st.chat_message("assistant"):
-            with st.spinner("查詢中..."):
-                try:
-                    _r = _req.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={st.secrets.get('GEMINI_API_KEY','')}",
-                        json={"system_instruction":{"parts":[{"text":_sys}]},"contents":st.session_state.ad_hist},
-                        timeout=30
-                    )
-                    _reply = _r.json()["candidates"][0]["content"]["parts"][0]["text"]
-                except Exception as e:
-                    _reply = f"錯誤：{e}"
-                st.markdown(_reply)
-
-        st.session_state.ad_msg.append({"role":"assistant","content":_reply})
-        st.session_state.ad_hist.append({"role":"model","parts":[{"text":_reply}]})
