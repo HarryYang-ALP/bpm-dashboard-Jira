@@ -10,7 +10,7 @@ from requests.auth import HTTPBasicAuth
 st.set_page_config(
     page_title="BPM Team Project Management Dashboard",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # 隱藏 Streamlit 預設的 header/footer，讓 dashboard 滿版呈現
@@ -58,10 +58,14 @@ REQUEST_FIELDS = [
 ]
 
 # ── 更新資料按鈕 ──
-col1, _ = st.columns([1, 9])
+col1, col2, _ = st.columns([1, 1, 8])
 with col1:
     if st.button("🔄 更新資料"):
         st.cache_data.clear()
+        st.rerun()
+with col2:
+    if st.button("💬 Chatbot"):
+        st.session_state.show_chat = not st.session_state.get("show_chat", False)
         st.rerun()
 
 
@@ -230,8 +234,11 @@ components.html(html, height=1200, scrolling=False)
 # ── AD 小幫手 Sidebar（可讀取專案資料）──
 import requests as _req, json as _json
 
-with st.sidebar:
-    st.image("https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png", width=60)
+if st.session_state.get("show_chat", False):
+    pass
+if st.session_state.get("show_chat", False):
+    with st.sidebar:
+        st.image("https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png", width=60)
     st.markdown("### AD 小幫手")
     st.caption("可詢問 BPM 問題或專案進度")
     st.divider()
