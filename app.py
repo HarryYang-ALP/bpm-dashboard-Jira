@@ -57,9 +57,13 @@ REQUEST_FIELDS = [
     FIELD_OWNER, FIELD_DECIDE, FIELD_NOTE, FIELD_PROG_NOTE,
 ]
 
-# ── 更新資料按鈕 ──
-col1, _ = st.columns([1, 9])
-with col1:
+# ── 按鈕列 ──
+btn1, btn2, _ = st.columns([1, 1, 8])
+with btn1:
+    if st.button("💬 Dashboard 小幫手", type="primary" if st.session_state.get("show_chat") else "secondary"):
+        st.session_state.show_chat = not st.session_state.get("show_chat", False)
+        st.rerun()
+with btn2:
     if st.button("🔄 更新資料"):
         st.cache_data.clear()
         st.rerun()
@@ -227,12 +231,12 @@ html = html.replace("__GEMINI_API_KEY__", st.secrets.get("GEMINI_API_KEY", ""))
 
 components.html(html, height=1200, scrolling=False)
 
-# ── AD 小幫手 Sidebar（可讀取專案資料）──
+# ── Dashboard 小幫手 Sidebar（可讀取專案資料）──
 import requests as _req, json as _json
 
 with st.sidebar:
     st.image("https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png", width=60)
-    st.markdown("### AD 小幫手")
+    st.markdown("### Dashboard 小幫手")
     st.caption("可詢問 BPM 問題或專案進度")
     st.divider()
 
@@ -308,5 +312,5 @@ BPM知識庫：登入用Azure AD Login / 代理人設定：Personal>Account>Task
         st.session_state.ad_history.append({"role": "model", "parts": [{"text": _reply}]})
         st.rerun()
 
-# ── AD 小幫手 Sidebar ──
+# ── Dashboard 小幫手 Sidebar ──
 import requests as _req, json as _json
