@@ -1,0 +1,43 @@
+# BPM Team Project Management Dashboard
+
+從 Jira（alp-bpmteam-dashboard.atlassian.net）即時抓取所有專案的任務資料，
+用 Streamlit 呈現成一個內部管理 dashboard。
+
+## 檔案結構
+
+- `app.py`：Streamlit 主程式，負責連線 Jira REST API、抓資料、算「逾期天數」，
+  再把資料餵給 `dashboard.html` 顯示。
+- `dashboard.html`：純前端頁面（HTML/CSS/JS），由 `app.py` 用 `components.html()` 嵌入。
+  裡面有 `__SNAPSHOT_DATETIME__` 和 `__TASKS_JSON__` 兩個佔位字串，
+  是 `app.py` 唯一會替換的地方。
+- `requirements.txt`：Python 套件需求（streamlit、requests）。
+- `.streamlit/secrets.toml.example`：secrets 格式範本，真正的 secrets 不要 commit。
+
+## 部署到 Streamlit Community Cloud
+
+1. 把這個 repo 連到 https://share.streamlit.io ，選這個 repo、主檔案選 `app.py`。
+2. 到 App 的 **Settings → Secrets**，貼上（不是建立檔案，是貼在網頁的 Secrets 欄位）：
+   ```toml
+   JIRA_DOMAIN = "alp-bpmteam-dashboard.atlassian.net"
+   JIRA_EMAIL = "harry.yang@alp.global"
+   JIRA_API_TOKEN = "你的 Jira API token"
+   ```
+3. Jira API token 在這裡建立：https://id.atlassian.com/manage-profile/security/api-tokens
+4. Deploy 完成後，dashboard 會自動掃描這個 Jira site 上所有專案（排除 SAM1、KAN 這兩個範例專案），
+   之後新增專案不用改程式碼，重新整理／按「🔄 更新資料」就會抓到。
+
+## 自訂欄位對照（Jira site 全域共用）
+
+| Notion 欄位 | Jira 欄位 |
+|---|---|
+| 開始日期 | customfield_10015 |
+| 結束日期 | customfield_10048 |
+| 實際完成日 | customfield_10049 |
+| 負責人 | customfield_10044 |
+| 須優先決議 | customfield_10046 |
+| 決議事項說明 | customfield_10043 |
+| 進度說明 | customfield_10045 |
+| 優先順序 | customfield_10042 |
+
+新建專案時，記得確認該專案的欄位配置(field configuration)有把這些自訂欄位加進畫面，
+否則資料會抓不到（回傳 null）。
