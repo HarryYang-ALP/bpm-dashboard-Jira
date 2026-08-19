@@ -225,7 +225,7 @@ html = html.replace("__SNAPSHOT_DATETIME__", today_str)
 html = html.replace("__TASKS_JSON__", tasks_json)
 html = html.replace("__GEMINI_API_KEY__", st.secrets.get("GEMINI_API_KEY", ""))
 
-st.html(html)
+components.(html)
 
 # ── AD 小幫手 Sidebar（可讀取專案資料）──
 import requests as _req, json as _json
