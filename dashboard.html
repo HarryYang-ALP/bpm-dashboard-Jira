@@ -425,91 +425,30 @@ document.getElementById("kanban").innerHTML = ["未開始","進行中","已完�
   });
 })();
 
-/* === Streamlit iframe 自動撐高 === */
-var _phLast=0, _phTimer=null;
+/* === Streamlit iframe 自動撐高：避免內容被截斷 === */
 function postHeight(){
-  clearTimeout(_phTimer);
-  _phTimer=setTimeout(function(){
-    var win=document.getElementById('adwin');
-    var wasOpen=win&&win.style.display==='flex';
-    if(win) win.style.display='none';
-    var h=Math.max(document.documentElement.scrollHeight,document.body.scrollHeight)+20;
-    if(win) win.style.display=wasOpen?'flex':'none';
-    if(Math.abs(h-_phLast)<5) return;
-    _phLast=h;
-    try{ if(window.frameElement){ window.frameElement.style.height=h+"px"; } }catch(e){}
-    try{ window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*"); }catch(e){}
-  },100);
+  var h = Math.max(
+    document.documentElement.scrollHeight,
+    document.body.scrollHeight,
+    document.documentElement.offsetHeight
+  ) + 20;
+  try{
+    if(window.frameElement){
+      window.frameElement.style.height = h + "px";
+    }
+  }catch(e){}
+  try{
+    window.parent.postMessage({
+      isStreamlitMessage:true,
+      type:"streamlit:setFrameHeight",
+      height:h
+    }, "*");
+  }catch(e){}
 }
-window.addEventListener("load",function(){ postHeight(); setTimeout(postHeight,800); });
-window.addEventListener("resize",postHeight);
-document.addEventListener("click",function(){ setTimeout(postHeight,300); });
+window.addEventListener("load", function(){ postHeight(); setTimeout(postHeight,200); setTimeout(postHeight,600); setTimeout(postHeight,1200); });
+window.addEventListener("resize", postHeight);
+document.addEventListener("click", function(){ setTimeout(postHeight,300); });
+try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }catch(e){}
 </script>
-
-<!-- AD 小幫手 -->
-<style>
-#adfab{position:fixed;bottom:28px;left:28px;width:52px;height:52px;border-radius:50%;background:white;border:1.5px solid #e0e0e0;box-shadow:0 4px 16px rgba(0,0,0,0.15);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:9999;}
-#adfab img{width:32px;height:32px;object-fit:contain;}
-#adwin{position:fixed;bottom:92px;left:28px;width:340px;height:460px;background:white;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.18);border:1px solid #e8eaed;flex-direction:column;z-index:9998;overflow:hidden;display:none;}
-#adhdr{padding:12px 16px;background:#1a73e8;display:flex;align-items:center;gap:10px;flex-shrink:0;}
-#adhdr img{width:22px;height:22px;object-fit:contain;background:white;border-radius:50%;padding:2px;}
-#adhdr span{color:white;font-size:14px;font-weight:600;flex:1;}
-#adcls{color:white;cursor:pointer;font-size:20px;background:none;border:none;line-height:1;}
-#admsgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#f7f8fa;}
-.admr{display:flex;align-items:flex-end;}
-.admr.u{justify-content:flex-end;}
-.adbb{max-width:82%;padding:8px 12px;font-size:13px;line-height:1.6;border-radius:0 12px 12px 12px;background:white;border:1px solid #e8eaed;color:#202124;}
-.admr.u .adbb{background:#e8f0fe;border:none;border-radius:12px 0 12px 12px;}
-.adtp{font-size:12px;color:#80868b;}
-#adbus{padding:7px 10px;background:white;border-top:1px solid #f0f0f0;flex-shrink:0;}
-#adbus p{font-size:11px;color:#80868b;margin:0 0 5px;}
-#adbuw{display:flex;flex-wrap:wrap;gap:5px;}
-.adbtn{padding:4px 10px;font-size:12px;background:white;border:1px solid #dadce0;border-radius:14px;cursor:pointer;color:#1a73e8;}
-.adbtn:hover{background:#e8f0fe;}
-#adia{padding:9px 12px;border-top:1px solid #e8eaed;background:white;flex-shrink:0;display:flex;gap:8px;align-items:center;}
-#adinp{flex:1;padding:7px 13px;border:1px solid #dadce0;border-radius:20px;font-size:13px;outline:none;font-family:inherit;}
-#adinp:focus{border-color:#1a73e8;}
-#adsnd{width:30px;height:30px;border-radius:50%;background:#1a73e8;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-#adsnd svg{width:13px;height:13px;fill:white;}
-</style>
-<div id="adfab"><img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="AD"></div>
-<div id="adwin">
-  <div id="adhdr"><img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="ALP"><span>AD 小幫手</span><button id="adcls">&#215;</button></div>
-  <div id="admsgs"><div class="admr"><div class="adbb">你好！有任何 BPM 或行政流程問題都可以問我 &#128522;</div></div></div>
-  <div id="adbus"><p>&#128161; 你可以這樣問：</p><div id="adbuw"></div></div>
-  <div id="adia"><input id="adinp" type="text" placeholder="請輸入你的問題..."><button id="adsnd"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg></button></div>
-</div>
-<script>
-(function(){
-var AK="__GEMINI_API_KEY__";
-var AU="https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key="+AK;
-var AS="你是 ALP 公司的 AD 小幫手，專門回答 BPM 系統操作與行政流程相關問題。請用繁體中文回答，清楚簡潔。若超出知識範圍請告知洽 AD 團隊。知識庫：BPM網址 https://bpm.alp.global / 登入用 Azure AD Login+M365 Email / 採購單LOA：3萬以下主管,3萬-30萬採購成控+主管,30萬-500萬+營運長,500萬-3000萬+執行長,3000萬以上+董事長 / 出差3工作天前申請";
-var AB={"d":["如何登入 BPM？","採購單怎麼填？","如何設定代理人？","出差申請流程？","核決權限？"],"採購":["核決權限？","WBS Code？","如何撤回？"],"核決":["一般採購核決？","物管採購核決？"],"出差":["出差簽核？","當日來回？"]};
-var AH=[],AO=false;
-function tog(){AO=!AO;window._adOpen=AO;document.getElementById("adwin").style.display=AO?"flex":"none";if(AO){bubs("d");document.getElementById("adinp").focus();}}
-function bubs(h){var s=AB["d"];for(var k in AB){if(k!=="d"&&h.indexOf(k)>=0){s=AB[k];break;}}document.getElementById("adbuw").innerHTML=s.map(function(q){return "<button class='adbtn' onclick='sq(""+q+"")'>" + q + "</button>";}).join("");}
-window.sq=function(q){document.getElementById("adinp").value=q;snd();};
-function am(txt,u){var ms=document.getElementById("admsgs");var r=document.createElement("div");r.className="admr"+(u?" u":"");var b=document.createElement("div");b.className="adbb";b.innerHTML=txt.replace(/
-/g,"<br>");r.appendChild(b);ms.appendChild(r);ms.scrollTop=ms.scrollHeight;}
-function snd(){
-  var ip=document.getElementById("adinp");var t=ip.value.trim();if(!t)return;
-  ip.value="";document.getElementById("adbus").style.display="none";
-  am(t,true);AH.push({role:"user",parts:[{text:t}]});
-  var ms=document.getElementById("admsgs");
-  var tr=document.createElement("div");tr.className="admr";var td=document.createElement("div");td.className="adtp";td.textContent="思考中...";tr.appendChild(td);ms.appendChild(tr);ms.scrollTop=99999;
-  fetch(AU,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system_instruction:{parts:[{text:AS}]},contents:AH})
-  }).then(function(r){return r.json();}).then(function(d){
-    var rep=(d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts[0].text)||"抱歉，無法取得回應。";
-    tr.remove();am(rep,false);AH.push({role:"model",parts:[{text:rep}]});
-    document.getElementById("adbus").style.display="block";bubs(t);
-  }).catch(function(){tr.remove();am("發生錯誤，請稍後再試。",false);});
-}
-document.getElementById("adfab").addEventListener("click",tog);
-document.getElementById("adcls").addEventListener("click",tog);
-document.getElementById("adsnd").addEventListener("click",snd);
-document.getElementById("adinp").addEventListener("keydown",function(e){if(e.key==="Enter")snd();});
-})();
-</script>
-
 </body>
 </html>
