@@ -10,7 +10,7 @@ from requests.auth import HTTPBasicAuth
 st.set_page_config(
     page_title="BPM Team Project Management Dashboard",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 # 隱藏 Streamlit 預設的 header/footer，讓 dashboard 滿版呈現
