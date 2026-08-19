@@ -225,4 +225,13 @@ html = html.replace("__SNAPSHOT_DATETIME__", today_str)
 html = html.replace("__TASKS_JSON__", tasks_json)
 html = html.replace("__GEMINI_API_KEY__", st.secrets.get("GEMINI_API_KEY", ""))
 
-components.html(html, height=1200, scrolling=False)
+# 讓 iframe 撐滿視窗高度，fixed 定位才能正確運作
+st.markdown("""
+<style>
+iframe[title="components.v1.html"] {
+    height: 100vh !important;
+    min-height: 800px;
+}
+</style>
+""", unsafe_allow_html=True)
+components.html(html, height=800, scrolling=True)
