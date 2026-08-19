@@ -58,11 +58,8 @@ REQUEST_FIELDS = [
 ]
 
 # ── 更新資料按鈕 ──
-col1, col2, _ = st.columns([1, 1, 8])
+col1, _ = st.columns([1, 9])
 with col1:
-    if st.button("💬 Chatbot"):
-        st.session_state.show_chat = not st.session_state.get("show_chat", False)
-with col2:
     if st.button("🔄 更新資料"):
         st.cache_data.clear()
         st.rerun()
@@ -228,7 +225,7 @@ html = html.replace("__SNAPSHOT_DATETIME__", today_str)
 html = html.replace("__TASKS_JSON__", tasks_json)
 html = html.replace("__GEMINI_API_KEY__", st.secrets.get("GEMINI_API_KEY", ""))
 
-components.html(html, height=1200, scrolling=False)
+st.html(html)
 
 # ── AD 小幫手 Sidebar（可讀取專案資料）──
 import requests as _req, json as _json
