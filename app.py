@@ -225,7 +225,7 @@ html = html.replace("__SNAPSHOT_DATETIME__", today_str)
 html = html.replace("__TASKS_JSON__", tasks_json)
 html = html.replace("__GEMINI_API_KEY__", st.secrets.get("GEMINI_API_KEY", ""))
 
-components.html(html, height=1200, scrolling=False)
+components.html(html, height=2400, scrolling=False)
 
 # AD 小幫手
 _LOGO = "https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png"
@@ -233,4 +233,4 @@ _GKEY = st.secrets.get("GEMINI_API_KEY", "")
 _CHATBOT_PATH = Path(__file__).parent / "chatbot.html"
 _chatbot = _CHATBOT_PATH.read_text(encoding="utf-8")
 _chatbot = _chatbot.replace("__LOGO__", _LOGO).replace("__GKEY__", _GKEY)
-components.html(_chatbot, height=560)
+components.html(_chatbot, height=52)
