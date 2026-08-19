@@ -427,30 +427,24 @@ document.getElementById("kanban").innerHTML = ["未開始","進行中","已完�
 
 /* === Streamlit iframe 自動撐高：避免內容被截斷 === */
 function postHeight(){
+  // 排除 chatbot 視窗高度，只計算 dashboard 本體
+  var win = document.getElementById('adwin');
+  var bar = document.getElementById('adpanel');
+  if(win) win.style.display='none';
+  if(bar) bar.style.display='none';
   var h = Math.max(
     document.documentElement.scrollHeight,
     document.body.scrollHeight,
     document.documentElement.offsetHeight
-  ) + 20; // 多留一點緩衝，避免邊界剛好被裁到
-  // 方法一（主要）：這個 iframe 是用 srcdoc 塞進 Streamlit 頁面的，跟外層同源，
-  // 可以直接改自己所在 iframe 元素的高度，不依賴 Streamlit 是否認得下面那個訊息格式。
-  try{
-    if(window.frameElement){
-      window.frameElement.style.height = h + "px";
-    }
-  }catch(e){}
-  // 方法二（保險）：同時也送 Streamlit 官方協定的訊息，兩種方式擇一生效即可。
-  try{
-    window.parent.postMessage({
-      isStreamlitMessage:true,
-      type:"streamlit:setFrameHeight",
-      height:h
-    }, "*");
-  }catch(e){}
+  ) + 20;
+  if(win) win.style.display=window._adOpen?'flex':'none';
+  if(bar) bar.style.display=window._adPanelOpen?'flex':'none';
+  try{ if(window.frameElement){ window.frameElement.style.height = h + "px"; } }catch(e){}
+  try{ window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*"); }catch(e){}
 }
 window.addEventListener("load", function(){ postHeight(); setTimeout(postHeight,200); setTimeout(postHeight,600); setTimeout(postHeight,1200); });
 window.addEventListener("resize", postHeight);
-document.addEventListener("click", function(){ setTimeout(postHeight,300); }); // 展開專案 / 切換分頁後重新量測
+document.addEventListener("click", function(){ setTimeout(postHeight,300); });
 try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }catch(e){}
 </script>
 
@@ -494,7 +488,7 @@ var AU="https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash
 var AS="你是 ALP 公司的 AD 小幫手，專門回答 BPM 系統操作與行政流程相關問題。請用繁體中文回答，清楚簡潔。若超出知識範圍請告知洽 AD 團隊。知識庫：BPM網址 https://bpm.alp.global / 登入用 Azure AD Login+M365 Email / 採購單LOA：3萬以下主管,3萬-30萬採購成控+主管,30萬-500萬+營運長,500萬-3000萬+執行長,3000萬以上+董事長 / 出差3工作天前申請";
 var AB={"d":["如何登入 BPM？","採購單怎麼填？","如何設定代理人？","出差申請流程？","核決權限？"],"採購":["核決權限？","WBS Code？","如何撤回？"],"核決":["一般採購核決？","物管採購核決？"],"出差":["出差簽核？","當日來回？"]};
 var AH=[],AO=false;
-function tog(){AO=!AO;document.getElementById("adwin").style.display=AO?"flex":"none";if(AO){bubs("d");document.getElementById("adinp").focus();}}
+function tog(){AO=!AO;window._adOpen=AO;document.getElementById("adwin").style.display=AO?"flex":"none";if(AO){bubs("d");document.getElementById("adinp").focus();}}
 function bubs(h){var s=AB["d"];for(var k in AB){if(k!=="d"&&h.indexOf(k)>=0){s=AB[k];break;}}document.getElementById("adbuw").innerHTML=s.map(function(q){return "<button class='adbtn' onclick='sq(""+q+"")'>" + q + "</button>";}).join("");}
 window.sq=function(q){document.getElementById("adinp").value=q;snd();};
 function am(txt,u){var ms=document.getElementById("admsgs");var r=document.createElement("div");r.className="admr"+(u?" u":"");var b=document.createElement("div");b.className="adbb";b.innerHTML=txt.replace(/
