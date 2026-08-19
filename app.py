@@ -244,7 +244,7 @@ if st.session_state.get("show_chat", False):
             st.session_state.ad_msg = []
         if "ad_hist" not in st.session_state:
             st.session_state.ad_hist = []
-        chat_container = st.container(height=450)
+        chat_container = st.container(height=400)
         with chat_container:
             for m in st.session_state.ad_msg:
                 with st.chat_message(m["role"]):
