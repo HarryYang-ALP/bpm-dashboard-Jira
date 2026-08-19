@@ -223,5 +223,6 @@ if not HTML_PATH.exists():
 html = HTML_PATH.read_text(encoding="utf-8")
 html = html.replace("__SNAPSHOT_DATETIME__", today_str)
 html = html.replace("__TASKS_JSON__", tasks_json)
+html = html.replace("__GEMINI_API_KEY__", st.secrets.get("GEMINI_API_KEY", ""))
 
 components.html(html, height=1200, scrolling=False)
