@@ -58,8 +58,11 @@ REQUEST_FIELDS = [
 ]
 
 # ── 更新資料按鈕 ──
-col1, _ = st.columns([1, 9])
+col1, col2, _ = st.columns([1, 1, 8])
 with col1:
+    if st.button("💬 Chatbot"):
+        st.session_state.show_chat = not st.session_state.get("show_chat", False)
+with col2:
     if st.button("🔄 更新資料"):
         st.cache_data.clear()
         st.rerun()
