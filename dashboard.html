@@ -425,26 +425,25 @@ document.getElementById("kanban").innerHTML = ["未開始","進行中","已完�
   });
 })();
 
-/* === Streamlit iframe 自動撐高：避免內容被截斷 === */
+/* === Streamlit iframe 自動撐高 === */
+var _phLast=0, _phTimer=null;
 function postHeight(){
-  // 排除 chatbot 視窗高度，只計算 dashboard 本體
-  var win = document.getElementById('adwin');
-  var bar = document.getElementById('adpanel');
-  if(win) win.style.display='none';
-  if(bar) bar.style.display='none';
-  var h = Math.max(
-    document.documentElement.scrollHeight,
-    document.body.scrollHeight,
-    document.documentElement.offsetHeight
-  ) + 20;
-  if(win) win.style.display=window._adOpen?'flex':'none';
-  if(bar) bar.style.display=window._adPanelOpen?'flex':'none';
-  try{ if(window.frameElement){ window.frameElement.style.height = h + "px"; } }catch(e){}
-  try{ window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*"); }catch(e){}
+  clearTimeout(_phTimer);
+  _phTimer=setTimeout(function(){
+    var win=document.getElementById('adwin');
+    var wasOpen=win&&win.style.display==='flex';
+    if(win) win.style.display='none';
+    var h=Math.max(document.documentElement.scrollHeight,document.body.scrollHeight)+20;
+    if(win) win.style.display=wasOpen?'flex':'none';
+    if(Math.abs(h-_phLast)<5) return;
+    _phLast=h;
+    try{ if(window.frameElement){ window.frameElement.style.height=h+"px"; } }catch(e){}
+    try{ window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*"); }catch(e){}
+  },100);
 }
-window.addEventListener("load", function(){ postHeight(); setTimeout(postHeight,200); setTimeout(postHeight,600); setTimeout(postHeight,1200); });
-window.addEventListener("resize", postHeight);
-document.addEventListener("click", function(){ setTimeout(postHeight,300); });
+window.addEventListener("load",function(){ postHeight(); setTimeout(postHeight,800); });
+window.addEventListener("resize",postHeight);
+document.addEventListener("click",function(){ setTimeout(postHeight,300); });
 </script>
 
 <!-- AD 小幫手 -->
