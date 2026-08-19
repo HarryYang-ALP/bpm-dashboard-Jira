@@ -454,11 +454,31 @@ document.addEventListener("click", function(){ setTimeout(postHeight,300); }); /
 try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }catch(e){}
 </script>
 
-<!-- AD 小幫手浮動按鈕 -->
+<!-- AD 小幫手 -->
 <style>
-#adfab{position:fixed;bottom:28px;left:28px;width:52px;height:52px;border-radius:50%;background:white;border:1.5px solid #e0e0e0;box-shadow:0 4px 16px rgba(0,0,0,0.15);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:9999;}
-#adfab img{width:32px;height:32px;object-fit:contain;}
-#adwin{position:fixed;bottom:92px;left:28px;width:340px;height:480px;background:white;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.18);border:1px solid #e8eaed;flex-direction:column;z-index:9998;overflow:hidden;display:none;}
+#adbar{
+  width:100%;
+  background:white;
+  border-top:1px solid #e8eaed;
+  padding:10px 20px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-top:20px;
+}
+#adbar img{width:28px;height:28px;object-fit:contain;cursor:pointer;}
+#adbar span{font-size:13px;color:#1a73e8;cursor:pointer;font-weight:500;}
+#adpanel{
+  width:100%;
+  border:1px solid #e8eaed;
+  border-radius:12px;
+  overflow:hidden;
+  margin-top:0;
+  display:none;
+  flex-direction:column;
+  background:white;
+  height:420px;
+}
 #adhdr{padding:12px 16px;background:#1a73e8;display:flex;align-items:center;gap:10px;flex-shrink:0;}
 #adhdr img{width:22px;height:22px;object-fit:contain;background:white;border-radius:50%;padding:2px;}
 #adhdr span{color:white;font-size:14px;font-weight:600;flex:1;}
@@ -481,8 +501,7 @@ try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }ca
 #adsnd svg{width:13px;height:13px;fill:white;}
 </style>
 
-<div id="adfab"><img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="AD"></div>
-<div id="adwin">
+<div id="adpanel">
   <div id="adhdr">
     <img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="ALP">
     <span>AD 小幫手</span>
@@ -498,32 +517,60 @@ try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }ca
   </div>
 </div>
 
+<div id="adbar">
+  <img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="AD" id="adtoggle">
+  <span id="adtoggle2">&#128172; AD 小幫手 — 點此詢問 BPM 或行政流程問題</span>
+</div>
+
 <script>
 (function(){
 var AK="__GEMINI_API_KEY__";
 var AU="https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key="+AK;
-var AS="你是 ALP 公司的 AD 小幫手，專門回答 BPM 系統操作與行政流程相關問題。請用繁體中文回答，清楚簡潔。若超出知識範圍請告知洽 AD 團隊。";
+var AS="你是 ALP 公司的 AD 小幫手，專門回答 BPM 系統操作與行政流程相關問題。請用繁體中文回答，清楚簡潔。若超出知識範圍請告知洽 AD 團隊。知識庫：BPM網址 https://bpm.alp.global / 登入用 Azure AD Login+M365 Email / 代理人設定：Personal>Account>Leaving設Out of Office，Task Rules加Delegation規則 / Claim Task取得Share Task處理權 / 採購單SAP-MM判定：主營業務、資產、預付訂閱 / 一般採購LOA：3萬以下主管,3萬-30萬採購成控+主管,30萬-500萬+營運長,500萬-3000萬+執行長,3000萬以上+董事長 / 出差3工作天前申請，含住宿才用BPM";
 var AB={"d":["如何登入 BPM？","採購單怎麼填？","如何設定代理人？","出差申請流程？","核決權限？"],"採購":["核決權限是多少？","WBS Code？","如何撤回？"],"核決":["一般採購核決？","物管採購核決？"],"出差":["出差簽核流程？","當日來回？"]};
 var AH=[],AO=false;
-function tog(){AO=!AO;document.getElementById("adwin").style.display=AO?"flex":"none";if(AO){bubs("d");document.getElementById("adinp").focus();}}
-function bubs(h){var s=AB["d"];for(var k in AB){if(k!=="d"&&h.indexOf(k)>=0){s=AB[k];break;}}document.getElementById("adbuw").innerHTML=s.map(function(q){return "<button class='adbtn' onclick='sq(""+q+"")'>" + q + "</button>";}).join("");}
+function tog(){
+  AO=!AO;
+  document.getElementById("adpanel").style.display=AO?"flex":"none";
+  if(AO){bubs("d");document.getElementById("adinp").focus();scroll();}
+}
+function scroll(){
+  var el=document.getElementById("adpanel");
+  el.scrollIntoView({behavior:"smooth",block:"end"});
+}
+function bubs(h){
+  var s=AB["d"];for(var k in AB){if(k!=="d"&&h.indexOf(k)>=0){s=AB[k];break;}}
+  document.getElementById("adbuw").innerHTML=s.map(function(q){
+    return "<button class='adbtn' onclick='sq(""+q+"")'>" + q + "</button>";
+  }).join("");
+}
 window.sq=function(q){document.getElementById("adinp").value=q;snd();};
-function am(txt,u){var ms=document.getElementById("admsgs");var r=document.createElement("div");r.className="admr"+(u?" u":"");var b=document.createElement("div");b.className="adbb";b.innerHTML=txt.replace(/
-/g,"<br>");r.appendChild(b);ms.appendChild(r);ms.scrollTop=ms.scrollHeight;}
+function am(txt,u){
+  var ms=document.getElementById("admsgs");
+  var r=document.createElement("div");r.className="admr"+(u?" u":"");
+  var b=document.createElement("div");b.className="adbb";
+  b.innerHTML=txt.replace(/
+/g,"<br>");
+  r.appendChild(b);ms.appendChild(r);ms.scrollTop=ms.scrollHeight;
+}
 function snd(){
   var ip=document.getElementById("adinp");var t=ip.value.trim();if(!t)return;
   ip.value="";document.getElementById("adbus").style.display="none";
   am(t,true);AH.push({role:"user",parts:[{text:t}]});
   var ms=document.getElementById("admsgs");
-  var tr=document.createElement("div");tr.className="admr";var td=document.createElement("div");td.className="adtp";td.textContent="思考中...";tr.appendChild(td);ms.appendChild(tr);ms.scrollTop=99999;
-  fetch(AU,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system_instruction:{parts:[{text:AS}]},contents:AH})
+  var tr=document.createElement("div");tr.className="admr";
+  var td=document.createElement("div");td.className="adtp";td.textContent="思考中...";
+  tr.appendChild(td);ms.appendChild(tr);ms.scrollTop=99999;
+  fetch(AU,{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({system_instruction:{parts:[{text:AS}]},contents:AH})
   }).then(function(r){return r.json();}).then(function(d){
     var rep=(d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts[0].text)||"抱歉，無法取得回應。";
     tr.remove();am(rep,false);AH.push({role:"model",parts:[{text:rep}]});
     document.getElementById("adbus").style.display="block";bubs(t);
   }).catch(function(){tr.remove();am("發生錯誤，請稍後再試。",false);});
 }
-document.getElementById("adfab").addEventListener("click",tog);
+document.getElementById("adtoggle").addEventListener("click",tog);
+document.getElementById("adtoggle2").addEventListener("click",tog);
 document.getElementById("adcls").addEventListener("click",tog);
 document.getElementById("adsnd").addEventListener("click",snd);
 document.getElementById("adinp").addEventListener("keydown",function(e){if(e.key==="Enter")snd();});
