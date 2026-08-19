@@ -227,11 +227,11 @@ html = html.replace("__GEMINI_API_KEY__", st.secrets.get("GEMINI_API_KEY", ""))
 
 components.html(html, height=1200, scrolling=False)
 
-# ── 浮動 AD 小幫手（放在 Streamlit 層，不在 iframe 裡）──
+# ── 浮動 AD 小幫手 ──
 GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 LOGO = "https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png"
 
-_chatbot_html = """
+_chatbot = """
 <style>
 #ad-fab{
   position:fixed;bottom:28px;left:28px;
@@ -276,10 +276,7 @@ _chatbot_html = """
 .ad-bubble-area{padding:8px 12px;background:white;border-top:1px solid #f0f0f0;flex-shrink:0;}
 .ad-bubble-label{font-size:11px;color:#80868b;margin-bottom:6px;}
 .ad-bubble-wrap{display:flex;flex-wrap:wrap;gap:5px;}
-.ad-bubble-btn{
-  padding:4px 10px;font-size:12px;background:white;
-  border:1px solid #dadce0;border-radius:14px;cursor:pointer;color:#1a73e8;
-}
+.ad-bubble-btn{padding:4px 10px;font-size:12px;background:white;border:1px solid #dadce0;border-radius:14px;cursor:pointer;color:#1a73e8;}
 .ad-bubble-btn:hover{background:#e8f0fe;border-color:#1a73e8;}
 #ad-chat-input-area{
   padding:10px 12px;border-top:1px solid #e8eaed;
@@ -297,9 +294,7 @@ _chatbot_html = """
 #ad-send-btn svg{width:14px;height:14px;fill:white;}
 </style>
 
-<div id="ad-fab">
-  <img src="__LOGO__" alt="AD">
-</div>
+<div id="ad-fab"><img src="__LOGO__" alt="AD"></div>
 
 <div id="ad-chat-window">
   <div id="ad-chat-header">
@@ -318,9 +313,7 @@ _chatbot_html = """
   </div>
   <div id="ad-chat-input-area">
     <input id="ad-chat-input" type="text" placeholder="請輸入你的問題...">
-    <button id="ad-send-btn">
-      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
-    </button>
+    <button id="ad-send-btn"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg></button>
   </div>
 </div>
 
@@ -331,59 +324,57 @@ _chatbot_html = """
   var SYSTEM = "你是 ALP 公司的 AD 小幫手，專門回答 BPM 系統操作與行政流程相關問題。請用繁體中文回答，清楚簡潔。若超出知識範圍請告知洽 AD 團隊。知識庫：BPM網址 https://bpm.alp.global / 登入用 Azure AD Login+M365 Email / 代理人設定：Personal>Account>Leaving設Out of Office，Task Rules加Delegation規則 / Claim Task取得Share Task處理權 / 採購單SAP-MM判定：主營業務、資產、預付訂閱 / 一般採購LOA：3萬以下主管,3萬-30萬採購成控+主管,30萬-500萬+營運長,500萬-3000萬+執行長,3000萬以上+董事長 / 出差3工作天前申請，含住宿才用BPM";
 
   var BUBBLES = {
-    "default": ["如何登入 BPM？","採購單怎麼填？","如何設定代理人？","出差申請流程？","核決權限？","驗收單怎麼開？"],
-    "採購": ["核決權限是多少？","WBS Code 怎麼選？","如何撤回？"],
-    "核決": ["一般採購核決？","物管採購核決？","請款核決？"],
-    "出差": ["出差簽核流程？","當日來回怎麼申請？"],
-    "代理": ["代理人設定步驟？","如何取消代理？"]
+    "default":["如何登入 BPM？","採購單怎麼填？","如何設定代理人？","出差申請流程？","核決權限？","驗收單怎麼開？"],
+    "採購":["核決權限是多少？","WBS Code 怎麼選？","如何撤回？"],
+    "核決":["一般採購核決？","物管採購核決？","請款核決？"],
+    "出差":["出差簽核流程？","當日來回怎麼申請？"],
+    "代理":["代理人設定步驟？","如何取消代理？"]
   };
 
-  var adHistory = [];
-  var adOpen = false;
+  var adHistory = [], adOpen = false;
 
-  function toggleAdChat() {
+  function toggleAdChat(){
     adOpen = !adOpen;
-    document.getElementById("ad-chat-window").style.display = adOpen ? "flex" : "none";
-    if (adOpen) { adRenderBubbles("default"); document.getElementById("ad-chat-input").focus(); }
+    var win = document.getElementById("ad-chat-window");
+    win.style.display = adOpen ? "flex" : "none";
+    if(adOpen){ adRenderBubbles("default"); document.getElementById("ad-chat-input").focus(); }
   }
 
-  function adRenderBubbles(hint) {
+  function adRenderBubbles(hint){
     var set = BUBBLES["default"];
-    for (var k in BUBBLES) {
-      if (k !== "default" && hint.indexOf(k) >= 0) { set = BUBBLES[k]; break; }
+    for(var k in BUBBLES){
+      if(k !== "default" && hint.indexOf(k) >= 0){ set = BUBBLES[k]; break; }
     }
-    var wrap = document.getElementById("ad-bubble-wrap");
-    wrap.innerHTML = set.map(function(q) {
-      return '<button class="ad-bubble-btn" onclick="adSendQ(this.textContent)">' + q + "</button>";
+    document.getElementById("ad-bubble-wrap").innerHTML = set.map(function(q){
+      return '<button class="ad-bubble-btn" onclick="window._adSendQ(this.textContent)">' + q + "</button>";
     }).join("");
   }
 
-  window.adSendQ = function(q) {
+  window._adSendQ = function(q){
     document.getElementById("ad-chat-input").value = q;
     adSendMsg();
   };
 
-  function adAddMsg(text, isUser) {
+  function adAddMsg(text, isUser){
     var msgs = document.getElementById("ad-chat-messages");
     var row = document.createElement("div");
     row.className = "ad-msg-row" + (isUser ? " user" : "");
     var b = document.createElement("div");
     b.className = "ad-msg-bubble";
-    b.innerHTML = text.replace(/\n/g, "<br>");
+    b.innerHTML = text.replace(/\n/g,"<br>");
     row.appendChild(b);
     msgs.appendChild(row);
     msgs.scrollTop = msgs.scrollHeight;
   }
 
-  function adSendMsg() {
+  function adSendMsg(){
     var inp = document.getElementById("ad-chat-input");
     var text = inp.value.trim();
-    if (!text) return;
+    if(!text) return;
     inp.value = "";
     document.getElementById("ad-bubble-area").style.display = "none";
     adAddMsg(text, true);
-    adHistory.push({role: "user", parts: [{text: text}]});
-
+    adHistory.push({role:"user", parts:[{text:text}]});
     var msgs = document.getElementById("ad-chat-messages");
     var tr = document.createElement("div");
     tr.className = "ad-msg-row";
@@ -393,22 +384,18 @@ _chatbot_html = """
     tr.appendChild(td);
     msgs.appendChild(tr);
     msgs.scrollTop = 99999;
-
-    fetch(API_URL, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        system_instruction: {parts: [{text: SYSTEM}]},
-        contents: adHistory
-      })
-    }).then(function(res) { return res.json(); }).then(function(data) {
-      var reply = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) || "抱歉，無法取得回應。";
+    fetch(API_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({system_instruction:{parts:[{text:SYSTEM}]},contents:adHistory})
+    }).then(function(r){return r.json();}).then(function(data){
+      var reply = data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0].text||"抱歉，無法取得回應。";
       tr.remove();
       adAddMsg(reply, false);
-      adHistory.push({role: "model", parts: [{text: reply}]});
+      adHistory.push({role:"model",parts:[{text:reply}]});
       document.getElementById("ad-bubble-area").style.display = "block";
       adRenderBubbles(text);
-    }).catch(function() {
+    }).catch(function(){
       tr.remove();
       adAddMsg("發生錯誤，請稍後再試。", false);
     });
@@ -417,13 +404,12 @@ _chatbot_html = """
   document.getElementById("ad-fab").addEventListener("click", toggleAdChat);
   document.getElementById("ad-chat-close").addEventListener("click", toggleAdChat);
   document.getElementById("ad-send-btn").addEventListener("click", adSendMsg);
-  document.getElementById("ad-chat-input").addEventListener("keydown", function(e) {
-    if (e.key === "Enter") adSendMsg();
+  document.getElementById("ad-chat-input").addEventListener("keydown", function(e){
+    if(e.key === "Enter") adSendMsg();
   });
 })();
 </script>
 """
 
-_chatbot_html = _chatbot_html.replace("__LOGO__", LOGO)
-_chatbot_html = _chatbot_html.replace("__GEMINI_KEY__", GEMINI_KEY)
-st.markdown(_chatbot_html, unsafe_allow_html=True)
+_chatbot = _chatbot.replace("__LOGO__", LOGO).replace("__GEMINI_KEY__", GEMINI_KEY)
+components.html(_chatbot, height=0)
