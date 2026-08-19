@@ -506,9 +506,18 @@ try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }ca
 (function(){
 var AK="__GEMINI_API_KEY__";
 var AU="https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key="+AK;
-var AS="你是 ALP 公司的 AD 小幫手，專門回答 BPM 系統操作與行政流程相關問題。請用繁體中文回答，清楚簡潔。若超出知識範圍請告知洽 AD 團隊。知識庫：BPM網址 https://bpm.alp.global / 登入用 Azure AD Login+M365 Email / 代理人設定：Personal>Account>Leaving設Out of Office，Task Rules加Delegation規則 / Claim Task取得Share Task處理權 / 採購單SAP-MM判定：主營業務、資產、預付訂閱 / 一般採購LOA：3萬以下主管,3萬-30萬採購成控+主管,30萬-500萬+營運長,500萬-3000萬+執行長,3000萬以上+董事長 / 出差3工作天前申請，含住宿才用BPM";
-var AB={"d":["如何登入 BPM？","採購單怎麼填？","如何設定代理人？","出差申請流程？","核決權限？","驗收單怎麼開？"],"採購":["核決權限是多少？","WBS Code 怎麼選？","如何撤回？"],"核決":["一般採購核決？","物管採購核決？","請款核決？"],"出差":["出差簽核流程？","當日來回？"],"代理":["代理人設定步驟？","如何取消？"]};
+var AS="你是 ALP 公司的 AD 小幫手，專門回答 BPM 系統操作與行政流程相關問題。請用繁體中文回答，清楚簡潔。若超出知識範圍請告知洽 AD 團隊。";
+var AB={"d":["如何登入 BPM？","採購單怎麼填？","如何設定代理人？","出差申請流程？","核決權限？"],"採購":["核決權限是多少？","WBS Code 怎麼選？","如何撤回？"],"核決":["一般採購核決？","物管採購核決？"],"出差":["出差簽核流程？","當日來回？"]};
 var AH=[],AO=false;
+
+// 關鍵：讓 iframe 高度等於視窗高度，fixed 才能正確定位
+function setHeight(){
+  var h = window.innerHeight || document.documentElement.clientHeight || 800;
+  try{ if(window.frameElement){ window.frameElement.style.height = h + "px"; } }catch(e){}
+  try{ window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*"); }catch(e){}
+}
+setHeight();
+window.addEventListener("resize", setHeight);
 
 function tog(){
   AO=!AO;
