@@ -234,7 +234,7 @@ LOGO = "https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png
 st.markdown(f"""
 <style>
 #ad-fab{{
-  position:fixed;bottom:28px;right:28px;
+  position:fixed;bottom:28px;left:28px;
   width:52px;height:52px;border-radius:50%;
   background:white;border:1.5px solid #e0e0e0;
   box-shadow:0 4px 16px rgba(0,0,0,0.15);
@@ -243,7 +243,7 @@ st.markdown(f"""
 }}
 #ad-fab img{{width:30px;height:30px;object-fit:contain;}}
 #ad-chat-window{{
-  position:fixed;bottom:92px;right:28px;
+  position:fixed;bottom:92px;left:28px;
   width:360px;height:500px;
   background:white;border-radius:16px;
   box-shadow:0 8px 40px rgba(0,0,0,0.18);
@@ -297,7 +297,7 @@ st.markdown(f"""
 #ad-send-btn svg{{width:14px;height:14px;fill:white;}}
 </style>
 
-<div id="ad-fab" onclick="toggleAdChat()">
+<div id="ad-fab">
   <img src="{LOGO}" alt="AD">
 </div>
 
@@ -305,7 +305,7 @@ st.markdown(f"""
   <div id="ad-chat-header">
     <img src="{LOGO}" alt="ALP">
     <span>AD 小幫手</span>
-    <button id="ad-chat-close" onclick="toggleAdChat()">✕</button>
+    <button id="ad-chat-close">✕</button>
   </div>
   <div id="ad-chat-messages">
     <div class="ad-msg-row">
@@ -319,13 +319,22 @@ st.markdown(f"""
   <div id="ad-chat-input-area">
     <input id="ad-chat-input" type="text" placeholder="請輸入你的問題..."
       onkeydown="if(event.key==='Enter')adSendMsg()">
-    <button id="ad-send-btn" onclick="adSendMsg()">
+    <button id="ad-send-btn">
       <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
     </button>
   </div>
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('ad-fab').addEventListener('click', toggleAdChat);
+  document.getElementById('ad-chat-close').addEventListener('click', toggleAdChat);
+  document.getElementById('ad-send-btn').addEventListener('click', adSendMsg);
+  document.getElementById('ad-chat-input').addEventListener('keydown', function(e) {
+    if(e.key === 'Enter') adSendMsg();
+  });
+});
+
 const AD_API_KEY = "{GEMINI_KEY}";
 const AD_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" + AD_API_KEY;
 const AD_SYSTEM = `你是 ALP 公司的 AD 小幫手，專門回答 BPM 系統操作與行政流程相關問題。請用繁體中文回答，清楚簡潔。若超出知識範圍請告知洽 AD 團隊。
