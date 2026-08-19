@@ -257,7 +257,7 @@ with st.sidebar:
     else:
         _prompt = None
 
-    _user_input = st.chat_input("請輸入你的問題...", key="ad_chat_input_v2")
+    _user_input = st.chat_input("請輸入你的問題...", key="ad_chat_input")
     if _user_input:
         _prompt = _user_input
 
