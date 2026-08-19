@@ -10,7 +10,7 @@ from requests.auth import HTTPBasicAuth
 st.set_page_config(
     page_title="BPM Team Project Management Dashboard",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 # 隱藏 Streamlit 預設的 header/footer，讓 dashboard 滿版呈現
@@ -225,4 +225,145 @@ html = html.replace("__SNAPSHOT_DATETIME__", today_str)
 html = html.replace("__TASKS_JSON__", tasks_json)
 html = html.replace("__GEMINI_API_KEY__", st.secrets.get("GEMINI_API_KEY", ""))
 
-components.html(html, height=1200, scrolling=False)
+st.html(html)
+
+# ── AD 小幫手 Sidebar（可讀取專案資料）──
+import requests as _req, json as _json
+
+with st.sidebar:
+    st.image("https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png", width=60)
+    st.markdown("### AD 小幫手")
+    st.caption("可詢問 BPM 問題或專案進度")
+    st.divider()
+
+    if "ad_messages" not in st.session_state:
+        st.session_state.ad_messages = []
+    if "ad_history" not in st.session_state:
+        st.session_state.ad_history = []
+
+    for msg in st.session_state.ad_messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    if not st.session_state.ad_messages:
+        st.markdown("**💡 快速提問：**")
+        for _q in ["目前有幾個任務逾期？", "哪些任務須優先決議？", "各負責人任務數？", "如何登入 BPM？", "採購單核決權限？"]:
+            if st.button(_q, key=f"qq_{_q}", use_container_width=True):
+                st.session_state.ad_pending = _q
+                st.rerun()
+
+    if "ad_pending" in st.session_state:
+        _prompt = st.session_state.pop("ad_pending")
+    else:
+        _prompt = None
+
+    _user_input = st.chat_input("請輸入你的問題...", key="ad_input")
+    if _user_input:
+        _prompt = _user_input
+
+    if _prompt:
+        st.session_state.ad_messages.append({"role": "user", "content": _prompt})
+        st.session_state.ad_history.append({"role": "user", "parts": [{"text": _prompt}]})
+        with st.chat_message("user"):
+            st.markdown(_prompt)
+
+        _GKEY = st.secrets.get("GEMINI_API_KEY", "")
+        _API = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={_GKEY}"
+
+        # 把 tasks 資料摘要傳給 AI
+        _tasks_summary = _json.dumps([{
+            "專案": t.get("proj",""),
+            "任務": t.get("task",""),
+            "狀態": t.get("status",""),
+            "負責人": t.get("owner",""),
+            "進度": str(t.get("progress","")) + "%",
+            "結束日": t.get("end",""),
+            "逾期天數": t.get("overdue_days", 0),
+            "須決議": t.get("decide",""),
+            "優先": t.get("prio","")
+        } for t in tasks], ensure_ascii=False)
+
+        _SYS = f"""你是ALP公司的AD小幫手，可以回答BPM系統問題，也可以根據以下專案資料回答問題。
+請用繁體中文回答，清楚簡潔。資料快照時間：{today_str}
+
+目前專案任務資料：
+{_tasks_summary}
+
+BPM知識庫：登入用Azure AD Login / 代理人設定：Personal>Account>Task Rules加Delegation / 採購LOA：3萬以下主管,3萬-30萬採購成控+主管,30萬-500萬+營運長,500萬-3000萬+執行長,3000萬以上+董事長 / 出差3工作天前申請"""
+
+        with st.chat_message("assistant"):
+            with st.spinner("思考中..."):
+                try:
+                    _res = _req.post(_API, json={
+                        "system_instruction": {"parts": [{"text": _SYS}]},
+                        "contents": st.session_state.ad_history
+                    }, timeout=30)
+                    _data = _res.json()
+                    _reply = _data["candidates"][0]["content"]["parts"][0]["text"]
+                except Exception as _e:
+                    _reply = f"發生錯誤：{str(_e)}"
+                st.markdown(_reply)
+
+        st.session_state.ad_messages.append({"role": "assistant", "content": _reply})
+        st.session_state.ad_history.append({"role": "model", "parts": [{"text": _reply}]})
+        st.rerun()
+
+# ── AD 小幫手 Sidebar ──
+import requests as _req, json as _json
+
+with st.sidebar:
+    st.image("https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png", width=60)
+    st.markdown("### AD 小幫手")
+    st.caption("詢問專案進度、任務狀況")
+    st.divider()
+
+    if "ad_msg" not in st.session_state:
+        st.session_state.ad_msg = []
+    if "ad_hist" not in st.session_state:
+        st.session_state.ad_hist = []
+
+    for m in st.session_state.ad_msg:
+        with st.chat_message(m["role"]):
+            st.markdown(m["content"])
+
+    if prompt := st.chat_input("問我專案進度...", key="ad_input"):
+        st.session_state.ad_msg.append({"role":"user","content":prompt})
+        st.session_state.ad_hist.append({"role":"user","parts":[{"text":prompt}]})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        _tasks_json = _json.dumps([{
+            "專案":t.get("proj",""),
+            "任務":t.get("task",""),
+            "狀態":t.get("status",""),
+            "負責人":t.get("owner",""),
+            "進度":str(t.get("progress",""))+"%",
+            "結束日":t.get("end",""),
+            "逾期天數":t.get("overdue_days",0),
+            "須決議":t.get("decide",""),
+            "優先":t.get("prio",""),
+            "進度說明":t.get("prog_note","")
+        } for t in tasks], ensure_ascii=False)
+
+        _sys = f"""你是 BPM Team 的專案進度助理。
+請根據以下 Jira 任務資料，用繁體中文回答使用者的問題。
+資料快照時間：{today_str}
+
+任務資料：
+{_tasks_json}"""
+
+        with st.chat_message("assistant"):
+            with st.spinner("查詢中..."):
+                try:
+                    _r = _req.post(
+                        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={st.secrets.get('GEMINI_API_KEY','')}",
+                        json={"system_instruction":{"parts":[{"text":_sys}]},"contents":st.session_state.ad_hist},
+                        timeout=30
+                    )
+                    _reply = _r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                except Exception as e:
+                    _reply = f"錯誤：{e}"
+                st.markdown(_reply)
+
+        st.session_state.ad_msg.append({"role":"assistant","content":_reply})
+        st.session_state.ad_hist.append({"role":"model","parts":[{"text":_reply}]})
