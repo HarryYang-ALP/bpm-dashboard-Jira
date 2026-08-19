@@ -1,0 +1,50 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,sans-serif}
+body{background:white}
+#bar{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid #e8eaed;cursor:pointer;background:white}
+#bar img{width:28px;height:28px;object-fit:contain}
+#bar span{font-size:13px;color:#1a73e8;font-weight:500}
+#win{display:none;flex-direction:column;height:460px;border-top:1px solid #e8eaed}
+#hdr{padding:12px 16px;background:#1a73e8;display:flex;align-items:center;gap:10px;flex-shrink:0}
+#hdr img{width:22px;height:22px;object-fit:contain;background:white;border-radius:50%;padding:2px}
+#hdr span{color:white;font-size:14px;font-weight:600;flex:1}
+#cls{color:white;cursor:pointer;font-size:20px;background:none;border:none}
+#msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#f7f8fa}
+.mr{display:flex}.mr.u{justify-content:flex-end}
+.bb{max-width:82%;padding:8px 12px;font-size:13px;line-height:1.6;border-radius:0 12px 12px 12px;background:white;border:1px solid #e8eaed;color:#202124}
+.mr.u .bb{background:#e8f0fe;border:none;border-radius:12px 0 12px 12px}
+.tp{font-size:12px;color:#80868b}
+#bus{padding:7px 10px;background:white;border-top:1px solid #f0f0f0;flex-shrink:0}
+#bus p{font-size:11px;color:#80868b;margin:0 0 5px}
+#buw{display:flex;flex-wrap:wrap;gap:5px}
+.btn{padding:4px 10px;font-size:12px;background:white;border:1px solid #dadce0;border-radius:14px;cursor:pointer;color:#1a73e8}
+#ia{padding:9px 12px;border-top:1px solid #e8eaed;background:white;flex-shrink:0;display:flex;gap:8px;align-items:center}
+#inp{flex:1;padding:7px 13px;border:1px solid #dadce0;border-radius:20px;font-size:13px;outline:none}
+#inp:focus{border-color:#1a73e8}
+#snd{width:30px;height:30px;border-radius:50%;background:#1a73e8;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#snd svg{width:13px;height:13px;fill:white}
+</style>
+<div id="win">
+  <div id="hdr"><img src="__LOGO__" alt="ALP"><span>AD 小幫手</span><button id="cls">&#215;</button></div>
+  <div id="msgs"><div class="mr"><div class="bb">你好！有任何 BPM 或行政流程問題都可以問我 &#128522;</div></div></div>
+  <div id="bus"><p>&#128161; 你可以這樣問：</p><div id="buw"></div></div>
+  <div id="ia"><input id="inp" type="text" placeholder="請輸入你的問題..."><button id="snd"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg></button></div>
+</div>
+<div id="bar"><img src="__LOGO__" alt="AD"><span>&#128172; AD 小幫手 - 點此詢問 BPM 問題</span></div>
+<script>
+var AK="__GKEY__";
+var AU="https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key="+AK;
+var AS="你是ALP公司的AD小幫手，專門回答BPM系統操作與行政流程問題。請用繁體中文回答，清楚簡潔。";
+var AB={"d":["如何登入BPM？","採購單怎麼填？","設定代理人？","出差申請？","核決權限？"],"採購":["核決權限？","WBS Code？","如何撤回？"],"出差":["出差簽核？","當日來回？"]};
+var AH=[],AO=false;
+function tog(){AO=!AO;document.getElementById("win").style.display=AO?"flex":"none";if(AO){bu("d");document.getElementById("inp").focus();}}
+function bu(h){var s=AB["d"];for(var k in AB){if(k!=="d"&&h.indexOf(k)>=0){s=AB[k];break;}}document.getElementById("buw").innerHTML=s.map(function(q){return "<button class='btn' onclick='sq(this.textContent)'>" + q + "</button>";}).join("");}
+window.sq=function(q){document.getElementById("inp").value=q;sd();};
+function am(t,u){var ms=document.getElementById("msgs");var r=document.createElement("div");r.className="mr"+(u?" u":"");var b=document.createElement("div");b.className="bb";b.innerHTML=t.replace(/
+/g,"<br>");r.appendChild(b);ms.appendChild(r);ms.scrollTop=ms.scrollHeight;}
+function sd(){var ip=document.getElementById("inp");var t=ip.value.trim();if(!t)return;ip.value="";document.getElementById("bus").style.display="none";am(t,true);AH.push({role:"user",parts:[{text:t}]});var ms=document.getElementById("msgs");var tr=document.createElement("div");tr.className="mr";var td=document.createElement("div");td.className="tp";td.textContent="思考中...";tr.appendChild(td);ms.appendChild(tr);ms.scrollTop=99999;fetch(AU,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system_instruction:{parts:[{text:AS}]},contents:AH})}).then(function(r){return r.json();}).then(function(d){var rep=(d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts[0].text)||"抱歉，無法取得回應。";tr.remove();am(rep,false);AH.push({role:"model",parts:[{text:rep}]});document.getElementById("bus").style.display="block";bu(t);}).catch(function(){tr.remove();am("發生錯誤，請稍後再試。",false);});}
+document.getElementById("bar").addEventListener("click",tog);
+document.getElementById("cls").addEventListener("click",tog);
+document.getElementById("snd").addEventListener("click",sd);
+document.getElementById("inp").addEventListener("keydown",function(e){if(e.key==="Enter")sd();});
+</script>
