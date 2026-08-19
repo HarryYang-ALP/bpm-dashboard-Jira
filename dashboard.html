@@ -445,7 +445,6 @@ function postHeight(){
 window.addEventListener("load", function(){ postHeight(); setTimeout(postHeight,200); setTimeout(postHeight,600); setTimeout(postHeight,1200); });
 window.addEventListener("resize", postHeight);
 document.addEventListener("click", function(){ setTimeout(postHeight,300); });
-try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }catch(e){}
 </script>
 
 <!-- AD 小幫手 -->
