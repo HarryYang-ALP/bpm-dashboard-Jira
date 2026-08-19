@@ -140,17 +140,21 @@ def fetch_all_tasks():
         proj_key = proj["key"]
         proj_name = proj["name"]
         try:
-            start_at = 0
+            next_page_token = None
             while True:
+                params = {
+                    "jql": f'project = "{proj_key}" ORDER BY created ASC',
+                    "fields": ",".join(REQUEST_FIELDS),
+                    "maxResults": 100,
+                }
+                if next_page_token:
+                    params["nextPageToken"] = next_page_token
+
+                # 注意：舊版 /rest/api/3/search 已被 Atlassian 下架（2025年起回傳 410 Gone），
+                # 這裡改用新版 /rest/api/3/search/jql，分頁方式也從 startAt/total 換成 nextPageToken/isLast。
                 res = requests.get(
-                    f"{JIRA_BASE}/search",
-                    auth=AUTH, headers=HEADERS,
-                    params={
-                        "jql": f'project = "{proj_key}" ORDER BY created ASC',
-                        "fields": ",".join(REQUEST_FIELDS),
-                        "maxResults": 100,
-                        "startAt": start_at,
-                    },
+                    f"{JIRA_BASE}/search/jql",
+                    auth=AUTH, headers=HEADERS, params=params,
                 )
                 res.raise_for_status()
                 data = res.json()
@@ -185,8 +189,8 @@ def fetch_all_tasks():
                         "overdue_days": calc_overdue_days(status, end_d, actual_end),
                     })
 
-                start_at += len(issues)
-                if not issues or start_at >= data.get("total", 0):
+                next_page_token = data.get("nextPageToken")
+                if data.get("isLast", True) or not next_page_token or not issues:
                     break
         except Exception as e:
             errors.append(f"{proj_name}: {e}")
