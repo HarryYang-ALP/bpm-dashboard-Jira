@@ -482,7 +482,6 @@ try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }ca
 </style>
 
 <div id="adfab"><img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="AD"></div>
-
 <div id="adwin">
   <div id="adhdr">
     <img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="ALP">
@@ -492,10 +491,7 @@ try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }ca
   <div id="admsgs">
     <div class="admr"><div class="adbb">你好！有任何 BPM 或行政流程問題都可以問我 &#128522;</div></div>
   </div>
-  <div id="adbus">
-    <p>&#128161; 你可以這樣問：</p>
-    <div id="adbuw"></div>
-  </div>
+  <div id="adbus"><p>&#128161; 你可以這樣問：</p><div id="adbuw"></div></div>
   <div id="adia">
     <input id="adinp" type="text" placeholder="請輸入你的問題...">
     <button id="adsnd"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg></button>
@@ -507,51 +503,20 @@ try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }ca
 var AK="__GEMINI_API_KEY__";
 var AU="https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key="+AK;
 var AS="你是 ALP 公司的 AD 小幫手，專門回答 BPM 系統操作與行政流程相關問題。請用繁體中文回答，清楚簡潔。若超出知識範圍請告知洽 AD 團隊。";
-var AB={"d":["如何登入 BPM？","採購單怎麼填？","如何設定代理人？","出差申請流程？","核決權限？"],"採購":["核決權限是多少？","WBS Code 怎麼選？","如何撤回？"],"核決":["一般採購核決？","物管採購核決？"],"出差":["出差簽核流程？","當日來回？"]};
+var AB={"d":["如何登入 BPM？","採購單怎麼填？","如何設定代理人？","出差申請流程？","核決權限？"],"採購":["核決權限是多少？","WBS Code？","如何撤回？"],"核決":["一般採購核決？","物管採購核決？"],"出差":["出差簽核流程？","當日來回？"]};
 var AH=[],AO=false;
-
-// 關鍵：讓 iframe 高度等於視窗高度，fixed 才能正確定位
-function setHeight(){
-  var h = window.innerHeight || document.documentElement.clientHeight || 800;
-  try{ if(window.frameElement){ window.frameElement.style.height = h + "px"; } }catch(e){}
-  try{ window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*"); }catch(e){}
-}
-setHeight();
-window.addEventListener("resize", setHeight);
-
-function tog(){
-  AO=!AO;
-  document.getElementById("adwin").style.display=AO?"flex":"none";
-  if(AO){bubs("d");document.getElementById("adinp").focus();}
-}
-function bubs(h){
-  var s=AB["d"];
-  for(var k in AB){if(k!=="d"&&h.indexOf(k)>=0){s=AB[k];break;}}
-  document.getElementById("adbuw").innerHTML=s.map(function(q){
-    return "<button class='adbtn' onclick='sq(""+q+"")'>" + q + "</button>";
-  }).join("");
-}
+function tog(){AO=!AO;document.getElementById("adwin").style.display=AO?"flex":"none";if(AO){bubs("d");document.getElementById("adinp").focus();}}
+function bubs(h){var s=AB["d"];for(var k in AB){if(k!=="d"&&h.indexOf(k)>=0){s=AB[k];break;}}document.getElementById("adbuw").innerHTML=s.map(function(q){return "<button class='adbtn' onclick='sq(""+q+"")'>" + q + "</button>";}).join("");}
 window.sq=function(q){document.getElementById("adinp").value=q;snd();};
-function am(txt,u){
-  var ms=document.getElementById("admsgs");
-  var r=document.createElement("div");r.className="admr"+(u?" u":"");
-  var b=document.createElement("div");b.className="adbb";
-  b.innerHTML=txt.replace(/
-/g,"<br>");
-  r.appendChild(b);ms.appendChild(r);ms.scrollTop=ms.scrollHeight;
-}
+function am(txt,u){var ms=document.getElementById("admsgs");var r=document.createElement("div");r.className="admr"+(u?" u":"");var b=document.createElement("div");b.className="adbb";b.innerHTML=txt.replace(/
+/g,"<br>");r.appendChild(b);ms.appendChild(r);ms.scrollTop=ms.scrollHeight;}
 function snd(){
-  var ip=document.getElementById("adinp");
-  var t=ip.value.trim();if(!t)return;
-  ip.value="";
-  document.getElementById("adbus").style.display="none";
+  var ip=document.getElementById("adinp");var t=ip.value.trim();if(!t)return;
+  ip.value="";document.getElementById("adbus").style.display="none";
   am(t,true);AH.push({role:"user",parts:[{text:t}]});
   var ms=document.getElementById("admsgs");
-  var tr=document.createElement("div");tr.className="admr";
-  var td=document.createElement("div");td.className="adtp";td.textContent="思考中...";
-  tr.appendChild(td);ms.appendChild(tr);ms.scrollTop=99999;
-  fetch(AU,{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({system_instruction:{parts:[{text:AS}]},contents:AH})
+  var tr=document.createElement("div");tr.className="admr";var td=document.createElement("div");td.className="adtp";td.textContent="思考中...";tr.appendChild(td);ms.appendChild(tr);ms.scrollTop=99999;
+  fetch(AU,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system_instruction:{parts:[{text:AS}]},contents:AH})
   }).then(function(r){return r.json();}).then(function(d){
     var rep=(d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts[0].text)||"抱歉，無法取得回應。";
     tr.remove();am(rep,false);AH.push({role:"model",parts:[{text:rep}]});
