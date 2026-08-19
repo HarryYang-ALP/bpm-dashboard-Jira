@@ -58,16 +58,17 @@ REQUEST_FIELDS = [
 ]
 
 # ── 更新資料按鈕 ──
-# 按鈕列
-btn1, btn2, _ = st.columns([2.2, 1.2, 6])
-with btn1:
-    if st.button("💬 Dashboard 小幫手", type="primary" if st.session_state.get("show_chat") else "secondary"):
-        st.session_state.show_chat = not st.session_state.get("show_chat", False)
-        st.rerun()
-with btn2:
-    if st.button("🔄 更新資料"):
-        st.cache_data.clear()
-        st.rerun()
+btn_area, _ = st.columns([1, 4])
+with btn_area:
+    c1, c2 = st.columns([1.3, 1])
+    with c1:
+        if st.button("💬 Dashboard 小幫手", type="primary" if st.session_state.get("show_chat") else "secondary", use_container_width=True):
+            st.session_state.show_chat = not st.session_state.get("show_chat", False)
+            st.rerun()
+    with c2:
+        if st.button("🔄 更新資料", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
 
 
 def _doc_to_text(v):
