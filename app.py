@@ -59,7 +59,7 @@ REQUEST_FIELDS = [
 
 # ── 更新資料按鈕 ──
 # 按鈕列
-btn1, btn2, _ = st.columns(["auto", "auto", 1])
+btn1, btn2, _ = st.columns([2.5, 1.5, 6])
 with btn1:
     if st.button("💬 Dashboard 小幫手", type="primary" if st.session_state.get("show_chat") else "secondary"):
         st.session_state.show_chat = not st.session_state.get("show_chat", False)
