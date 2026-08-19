@@ -1,0 +1,5 @@
+# 不要把密鑰檔案提交到 GitHub
+.streamlit/secrets.toml
+__pycache__/
+*.pyc
+.DS_Store
