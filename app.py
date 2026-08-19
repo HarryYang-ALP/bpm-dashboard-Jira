@@ -10,7 +10,7 @@ from requests.auth import HTTPBasicAuth
 st.set_page_config(
     page_title="BPM Team Project Management Dashboard",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # 隱藏 Streamlit 預設的 header/footer，讓 dashboard 滿版呈現
@@ -227,13 +227,13 @@ html = html.replace("__GEMINI_API_KEY__", st.secrets.get("GEMINI_API_KEY", ""))
 
 components.html(html, height=1200, scrolling=False)
 
-# ── AD 小幫手 Sidebar ──
-import requests as _req
+# ── AD 小幫手 Sidebar（可讀取專案資料）──
+import requests as _req, json as _json
 
 with st.sidebar:
-    st.image("https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png", width=80)
+    st.image("https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png", width=60)
     st.markdown("### AD 小幫手")
-    st.caption("有任何 BPM 或行政流程問題，直接問我！")
+    st.caption("可詢問 BPM 問題或專案進度")
     st.divider()
 
     if "ad_messages" not in st.session_state:
@@ -241,27 +241,22 @@ with st.sidebar:
     if "ad_history" not in st.session_state:
         st.session_state.ad_history = []
 
-    # 顯示對話歷史
     for msg in st.session_state.ad_messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # 快速提問按鈕
     if not st.session_state.ad_messages:
         st.markdown("**💡 快速提問：**")
-        quick_qs = ["如何登入 BPM？", "採購單怎麼填？", "如何設定代理人？", "出差申請流程？", "核決權限查詢？"]
-        for q in quick_qs:
-            if st.button(q, key=f"qq_{q}", use_container_width=True):
-                st.session_state.ad_pending = q
+        for _q in ["目前有幾個任務逾期？", "哪些任務須優先決議？", "各負責人任務數？", "如何登入 BPM？", "採購單核決權限？"]:
+            if st.button(_q, key=f"qq_{_q}", use_container_width=True):
+                st.session_state.ad_pending = _q
                 st.rerun()
 
-    # 處理快速提問
     if "ad_pending" in st.session_state:
         _prompt = st.session_state.pop("ad_pending")
     else:
         _prompt = None
 
-    # 輸入框
     _user_input = st.chat_input("請輸入你的問題...", key="ad_input")
     if _user_input:
         _prompt = _user_input
@@ -274,7 +269,27 @@ with st.sidebar:
 
         _GKEY = st.secrets.get("GEMINI_API_KEY", "")
         _API = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={_GKEY}"
-        _SYS = "你是ALP公司的AD小幫手，專門回答BPM系統操作與行政流程問題。請用繁體中文回答，清楚簡潔。若超出知識範圍請告知洽AD團隊。知識庫：BPM網址 https://bpm.alp.global / 登入用Azure AD Login+M365 Email / 代理人設定：Personal>Account>Leaving設Out of Office / Claim Task取得Share Task處理權 / 採購單LOA：3萬以下主管,3萬-30萬採購成控+主管,30萬-500萬+營運長,500萬-3000萬+執行長,3000萬以上+董事長 / 出差3工作天前申請"
+
+        # 把 tasks 資料摘要傳給 AI
+        _tasks_summary = _json.dumps([{
+            "專案": t.get("proj",""),
+            "任務": t.get("task",""),
+            "狀態": t.get("status",""),
+            "負責人": t.get("owner",""),
+            "進度": str(t.get("progress","")) + "%",
+            "結束日": t.get("end",""),
+            "逾期天數": t.get("overdue_days", 0),
+            "須決議": t.get("decide",""),
+            "優先": t.get("prio","")
+        } for t in tasks], ensure_ascii=False)
+
+        _SYS = f"""你是ALP公司的AD小幫手，可以回答BPM系統問題，也可以根據以下專案資料回答問題。
+請用繁體中文回答，清楚簡潔。資料快照時間：{today_str}
+
+目前專案任務資料：
+{_tasks_summary}
+
+BPM知識庫：登入用Azure AD Login / 代理人設定：Personal>Account>Task Rules加Delegation / 採購LOA：3萬以下主管,3萬-30萬採購成控+主管,30萬-500萬+營運長,500萬-3000萬+執行長,3000萬以上+董事長 / 出差3工作天前申請"""
 
         with st.chat_message("assistant"):
             with st.spinner("思考中..."):
