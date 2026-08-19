@@ -453,5 +453,230 @@ window.addEventListener("resize", postHeight);
 document.addEventListener("click", function(){ setTimeout(postHeight,300); }); // 展開專案 / 切換分頁後重新量測
 try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }catch(e){}
 </script>
+
+<!-- ══ 浮動 AD 小幫手 ══ -->
+<style>
+#ad-fab{
+  position:fixed;bottom:28px;right:28px;
+  width:52px;height:52px;border-radius:50%;
+  background:white;border:1.5px solid #e0e0e0;
+  box-shadow:0 4px 16px rgba(0,0,0,0.15);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  z-index:9999;transition:box-shadow 0.2s;
+}
+#ad-fab:hover{box-shadow:0 6px 24px rgba(0,0,0,0.22);}
+#ad-fab img{width:30px;height:30px;object-fit:contain;}
+
+#ad-chat-window{
+  position:fixed;bottom:92px;right:28px;
+  width:360px;height:520px;
+  background:white;border-radius:16px;
+  box-shadow:0 8px 40px rgba(0,0,0,0.18);
+  border:1px solid #e8eaed;
+  display:none;flex-direction:column;
+  z-index:9998;overflow:hidden;
+}
+#ad-chat-header{
+  padding:13px 16px;background:#1a73e8;
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+#ad-chat-header img{width:24px;height:24px;object-fit:contain;background:white;border-radius:50%;padding:2px;}
+#ad-chat-header span{color:white;font-size:14px;font-weight:600;flex:1;}
+#ad-chat-close{color:white;cursor:pointer;font-size:18px;line-height:1;background:none;border:none;padding:0;}
+
+#ad-chat-messages{
+  flex:1;overflow-y:auto;padding:14px;
+  display:flex;flex-direction:column;gap:10px;
+  background:#f7f8fa;
+}
+.ad-msg-row{display:flex;gap:8px;align-items:flex-end;}
+.ad-msg-row.user{justify-content:flex-end;}
+.ad-msg-bubble{
+  max-width:80%;padding:9px 13px;
+  font-size:13px;line-height:1.6;border-radius:0 12px 12px 12px;
+  background:white;border:1px solid #e8eaed;color:#202124;
+}
+.ad-msg-row.user .ad-msg-bubble{
+  background:#e8f0fe;border:none;
+  border-radius:12px 0 12px 12px;
+}
+.ad-typing{font-size:12px;color:#80868b;padding:2px 4px;}
+
+.ad-bubble-area{padding:8px 12px;background:white;border-top:1px solid #f0f0f0;flex-shrink:0;}
+.ad-bubble-label{font-size:11px;color:#80868b;margin-bottom:6px;}
+.ad-bubble-wrap{display:flex;flex-wrap:wrap;gap:5px;}
+.ad-bubble-btn{
+  padding:4px 10px;font-size:12px;
+  background:white;border:1px solid #dadce0;
+  border-radius:14px;cursor:pointer;color:#1a73e8;
+  transition:all 0.15s;
+}
+.ad-bubble-btn:hover{background:#e8f0fe;border-color:#1a73e8;}
+
+#ad-chat-input-area{
+  padding:10px 12px;border-top:1px solid #e8eaed;
+  background:white;flex-shrink:0;
+  display:flex;gap:8px;align-items:center;
+}
+#ad-chat-input{
+  flex:1;padding:8px 14px;
+  border:1px solid #dadce0;border-radius:20px;
+  font-size:13px;outline:none;background:#fafafa;
+  font-family:inherit;
+}
+#ad-chat-input:focus{border-color:#1a73e8;background:white;}
+#ad-send-btn{
+  width:32px;height:32px;border-radius:50%;
+  background:#1a73e8;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+#ad-send-btn svg{width:14px;height:14px;fill:white;}
+</style>
+
+<!-- 浮動按鈕 -->
+<div id="ad-fab" onclick="toggleChat()">
+  <img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="AD">
+</div>
+
+<!-- 聊天視窗 -->
+<div id="ad-chat-window">
+  <div id="ad-chat-header">
+    <img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="ALP">
+    <span>AD 小幫手</span>
+    <button id="ad-chat-close" onclick="toggleChat()">✕</button>
+  </div>
+  <div id="ad-chat-messages">
+    <div class="ad-msg-row">
+      <div class="ad-msg-bubble">你好！我是 AD 小幫手，有任何 BPM 系統或行政流程問題都可以問我 😊</div>
+    </div>
+  </div>
+  <div class="ad-bubble-area" id="ad-bubble-area">
+    <div class="ad-bubble-label">💡 你可以這樣問：</div>
+    <div class="ad-bubble-wrap" id="ad-bubble-wrap"></div>
+  </div>
+  <div id="ad-chat-input-area">
+    <input id="ad-chat-input" type="text" placeholder="請輸入你的問題..."
+      onkeydown="if(event.key==='Enter')adSendMsg()">
+    <button id="ad-send-btn" onclick="adSendMsg()">
+      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const API_KEY = "__GEMINI_API_KEY__";
+  const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" + API_KEY;
+
+  const SYSTEM_PROMPT = `你是 ALP 公司的 AD 小幫手，專門回答 BPM 系統操作與行政流程相關問題。
+請務必使用繁體中文回答，回答要清楚簡潔。
+若問題超出知識範圍，請回答「此問題超出我目前的知識範圍，請洽相關負責人或 AD 團隊協助。」
+
+知識庫：
+【BPM基本資訊】網址：https://bpm.alp.global / 登入：點 Azure AD Login 用 M365 Email / 語言：英文、繁體中文、簡體中文
+【代理人設定】路徑：Personal > Account。步驟1：Leaving 設 Out of Office 並儲存。步驟2：Task Rules 新增 Delegation 規則，選代理人，確認 Valid。
+【選單功能】Processes：發起申請 / Drafts：草稿 / Templates：範本 / Worklist：待審核 / Share Task：共用任務需先 Claim Task / My Requests：我的申請 / Processed：已處理 / All Accessible：所有可檢視
+【操作按鈕】Approve同意 / Return退回 / Reject拒絕終止 / Notify知會 / Add Approver加會簽 / Withdraw撤回 / Cancel作廢 / Claim Task取得處理權 / Release Task釋放 / Submit送出 / Preview流程圖
+【採購單】SAP-MM判定：主營業務、資產(8萬以上耐用2年=列帳;1-8萬耐用2年=列管)、預付軟體超過1個月。欄位：成本中心、WBS Code選最下層X、付款一次性或分期。急件1天/一般3天。
+【一般採購LOA】3萬以下:主管 / 3萬-30萬:採購成控會計+主管 / 30萬-500萬:+營運長 / 500萬-3000萬:+執行長 / 3000萬以上:+董事長
+【物管採購LOA】15萬以下:主管 / 15萬-500萬:+營運長 / 500萬-3000萬:+執行長 / 3000萬以上:+董事長
+【驗收單】1驗收對1採購。需拋SAP-MM。附件:工程=完工圖,備品=型號照片,服務=完成證明。
+【出差】3工作天前申請。含住宿才用BPM,當日來回用Apollo公出。簽核:申請人>直屬主管>單位主管>人資>執行長。`;
+
+  const BUBBLES = {
+    default: ["如何登入 BPM？","採購單怎麼填？","如何設定代理人？","出差申請流程？","核決權限？","驗收單怎麼開？"],
+    採購: ["核決權限是多少？","WBS Code 怎麼選？","付款方式有哪些？","如何撤回？"],
+    核決: ["一般採購核決？","物管採購核決？","請款核決權限？"],
+    驗收: ["驗收單附件規定？","對應規則？","資產驗收流程？"],
+    出差: ["出差簽核流程？","當日來回怎麼申請？"],
+    代理: ["代理人設定步驟？","如何取消代理？"],
+    登入: ["如何設定代理人？","語言怎麼切換？","Worklist 在哪？"],
+  };
+
+  let chatHistory = [];
+  let isOpen = false;
+
+  window.toggleChat = function(){
+    isOpen = !isOpen;
+    const win = document.getElementById('ad-chat-window');
+    win.style.display = isOpen ? 'flex' : 'none';
+    if(isOpen){
+      renderBubbles('default');
+      document.getElementById('ad-chat-input').focus();
+    }
+  };
+
+  function renderBubbles(hint){
+    let set = BUBBLES.default;
+    for(const key of Object.keys(BUBBLES)){
+      if(key !== 'default' && hint.includes(key)){ set = BUBBLES[key]; break; }
+    }
+    const wrap = document.getElementById('ad-bubble-wrap');
+    wrap.innerHTML = set.map(q =>
+      `<button class="ad-bubble-btn" onclick="adSendQuestion('${q}')">${q}</button>`
+    ).join('');
+  }
+
+  window.adSendQuestion = function(q){
+    document.getElementById('ad-chat-input').value = q;
+    adSendMsg();
+  };
+
+  function addMsg(text, isUser){
+    const msgs = document.getElementById('ad-chat-messages');
+    const row = document.createElement('div');
+    row.className = 'ad-msg-row' + (isUser ? ' user' : '');
+    const bubble = document.createElement('div');
+    bubble.className = 'ad-msg-bubble';
+    bubble.innerHTML = text.replace(/\n/g,'<br>');
+    row.appendChild(bubble);
+    msgs.appendChild(row);
+    msgs.scrollTop = msgs.scrollHeight;
+    return bubble;
+  }
+
+  window.adSendMsg = async function(){
+    const input = document.getElementById('ad-chat-input');
+    const text = input.value.trim();
+    if(!text) return;
+    input.value = '';
+
+    document.getElementById('ad-bubble-area').style.display = 'none';
+    addMsg(text, true);
+    chatHistory.push({ role:'user', parts:[{text}] });
+
+    const typingRow = document.createElement('div');
+    typingRow.className = 'ad-msg-row';
+    const typing = document.createElement('div');
+    typing.className = 'ad-typing';
+    typing.textContent = '思考中...';
+    typingRow.appendChild(typing);
+    document.getElementById('ad-chat-messages').appendChild(typingRow);
+    document.getElementById('ad-chat-messages').scrollTop = 99999;
+
+    try{
+      const res = await fetch(API_URL, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          system_instruction:{ parts:[{text: SYSTEM_PROMPT}] },
+          contents: chatHistory
+        })
+      });
+      const data = await res.json();
+      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '抱歉，無法取得回應。';
+      typingRow.remove();
+      addMsg(reply, false);
+      chatHistory.push({ role:'model', parts:[{text:reply}] });
+      document.getElementById('ad-bubble-area').style.display = 'block';
+      renderBubbles(text);
+    } catch(e){
+      typingRow.remove();
+      addMsg('發生錯誤，請稍後再試。', false);
+    }
+  };
+})();
+</script>
+
 </body>
 </html>
