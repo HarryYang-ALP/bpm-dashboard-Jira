@@ -239,8 +239,29 @@ if st.session_state.show_chat:
     with dash_col:
         components.html(html, height=1200, scrolling=False)
     with chat_col:
-        st.markdown("#### 💬 Dashboard 小幫手")
-        st.divider()
+        st.markdown("""
+        <style>
+        .chat-header {
+            background: linear-gradient(135deg, #1a73e8, #0d47a1);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .chat-header img { width: 32px; height: 32px; object-fit: contain; }
+        .chat-header h3 { color: white; margin: 0; font-size: 16px; font-weight: 600; }
+        .chat-header p { color: rgba(255,255,255,0.8); margin: 0; font-size: 12px; }
+        </style>
+        <div class="chat-header">
+            <img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="ALP">
+            <div>
+                <h3>Dashboard 小幫手</h3>
+                <p>可詢問專案進度或直接更新任務資料</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # 確認更新的 UI
         if st.session_state.pending_update:
