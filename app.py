@@ -60,9 +60,9 @@ if "pending_update" not in st.session_state:
     st.session_state.pending_update = None
 
 # ── 按鈕列 ──
-btn_area, _ = st.columns([1, 4])
+btn_area, _ = st.columns([1, 3])
 with btn_area:
-    c1, c2 = st.columns([1.3, 1])
+    c1, c2 = st.columns([2, 1])
     with c1:
         if st.button("💬 Dashboard 小幫手", type="primary" if st.session_state.show_chat else "secondary", use_container_width=True):
             st.session_state.show_chat = not st.session_state.show_chat
