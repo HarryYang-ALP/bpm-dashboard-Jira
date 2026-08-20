@@ -242,7 +242,7 @@ if st.session_state.show_chat:
         st.markdown("""
         <style>
         .chat-header {
-            background: linear-gradient(135deg, #1a73e8, #0d47a1);
+            background: white; border: 1px solid #e8eaed; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             border-radius: 12px;
             padding: 16px 20px;
             margin-bottom: 12px;
@@ -251,8 +251,8 @@ if st.session_state.show_chat:
             gap: 12px;
         }
         .chat-header img { width: 32px; height: 32px; object-fit: contain; }
-        .chat-header h3 { color: white; margin: 0; font-size: 16px; font-weight: 600; }
-        .chat-header p { color: rgba(255,255,255,0.8); margin: 0; font-size: 12px; }
+        .chat-header h3 { color: #202124; margin: 0; font-size: 16px; font-weight: 600; }
+        .chat-header p { color: #80868b; margin: 0; font-size: 12px; }
         </style>
         <div class="chat-header">
             <img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="ALP">
