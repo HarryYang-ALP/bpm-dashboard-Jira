@@ -35,17 +35,39 @@ EXCLUDE_PROJECT_KEYS = {"SAM1", "KAN"}
 FIELD_START      = "customfield_10015"
 FIELD_END        = "customfield_10048"
 FIELD_ACTUAL_END = "customfield_10049"
-FIELD_OWNER      = "customfield_10044"
 FIELD_DECIDE     = "customfield_10046"
 FIELD_NOTE       = "customfield_10043"
 FIELD_PROG_NOTE  = "customfield_10045"
 FIELD_PRIORITY   = "customfield_10042"
 
-REQUEST_FIELDS = [
-    "summary", "status", "priority", FIELD_PRIORITY,
-    FIELD_START, FIELD_END, FIELD_ACTUAL_END,
-    FIELD_OWNER, FIELD_DECIDE, FIELD_NOTE, FIELD_PROG_NOTE,
-]
+# ── 負責人欄位：改用名稱動態查詢 ──
+# 原因：不同專案（尤其是後續用 CSV 匯入新建的專案，例如「工單追蹤」「Ad-Hoc
+# Project」）即使欄位顯示名稱都叫「負責人」、類型也都是 Paragraph，Jira 底層
+# 仍會給每個專案各自獨立的 customfield ID（Team-managed 專案的自訂欄位不跨
+# 專案共用 ID）。寫死單一 customfield_10044 只覆蓋得到 BPM 專案，其餘專案的
+# 負責人一律抓空。改成用名稱查出「所有」符合的欄位 ID，讀取時全部一起要，
+# 逐一嘗試取值；之後不管再匯入幾個新專案，只要欄位顯示名稱一樣叫「負責人」
+# 就會自動涵蓋，不必再手動改程式碼。
+OWNER_FIELD_NAME = "負責人"
+
+
+@st.cache_data(ttl=3600)
+def fetch_owner_field_ids():
+    """回傳所有名稱等於 OWNER_FIELD_NAME 的 customfield ID 清單。"""
+    try:
+        res = requests.get(f"{JIRA_BASE}/field", auth=AUTH, headers=HEADERS)
+        res.raise_for_status()
+        ids = [
+            f["id"] for f in res.json()
+            if f.get("name") == OWNER_FIELD_NAME and str(f.get("id", "")).startswith("customfield_")
+        ]
+        # 保底：至少保留舊有的 10044，避免這支查詢意外失敗時整個欄位消失
+        if "customfield_10044" not in ids:
+            ids.append("customfield_10044")
+        return ids
+    except Exception:
+        return ["customfield_10044"]
+
 
 STATUS_TRANSITION = {"未開始": "2", "進行中": "3", "已完成": "5"}
 
@@ -91,6 +113,15 @@ def _doc_to_text(v):
     return ""
 
 
+def _first_owner_text(fields, owner_field_ids):
+    """依序檢查每個候選的負責人欄位 ID，回傳第一個有值的文字。"""
+    for fid in owner_field_ids:
+        txt = _doc_to_text(fields.get(fid))
+        if txt:
+            return txt
+    return ""
+
+
 def _to_date(d):
     if not d:
         return None
@@ -128,13 +159,20 @@ def fetch_projects():
 def fetch_all_tasks():
     tasks = []
     errors = []
+    owner_field_ids = fetch_owner_field_ids()
+    request_fields = [
+        "summary", "status", "priority", FIELD_PRIORITY,
+        FIELD_START, FIELD_END, FIELD_ACTUAL_END,
+        FIELD_DECIDE, FIELD_NOTE, FIELD_PROG_NOTE,
+    ] + owner_field_ids
+
     for proj in fetch_projects():
         proj_key = proj["key"]
         proj_name = proj["name"]
         try:
             next_page_token = None
             while True:
-                params = {"jql": f'project = "{proj_key}" ORDER BY created ASC', "fields": ",".join(REQUEST_FIELDS), "maxResults": 100}
+                params = {"jql": f'project = "{proj_key}" ORDER BY created ASC', "fields": ",".join(request_fields), "maxResults": 100}
                 if next_page_token:
                     params["nextPageToken"] = next_page_token
                 res = requests.get(f"{JIRA_BASE}/search/jql", auth=AUTH, headers=HEADERS, params=params)
@@ -151,7 +189,7 @@ def fetch_all_tasks():
                         "issue_key": issue["key"],
                         "proj": proj_name,
                         "task": f.get("summary", ""),
-                        "owner": _doc_to_text(f.get(FIELD_OWNER)),
+                        "owner": _first_owner_text(f, owner_field_ids),
                         "prio": prio,
                         "status": status,
                         "start": f.get(FIELD_START),
@@ -188,7 +226,24 @@ def update_jira_issue(issue_key, updates):
                 if not res.ok:
                     errors.append(f"狀態更新失敗：{res.text}")
         elif field == "負責人":
-            fields_payload[FIELD_OWNER] = {"type": "doc", "version": 1, "content": [{"type": "paragraph", "content": [{"type": "text", "text": value}]}]}
+            # 這張 issue 所屬專案的負責人欄位 ID 可能跟其他專案不同，逐一嘗試，
+            # 成功一個就停止；全部失敗才回報錯誤。
+            owner_field_ids = fetch_owner_field_ids()
+            owner_doc = {"type": "doc", "version": 1, "content": [{"type": "paragraph", "content": [{"type": "text", "text": value}]}]}
+            ok = False
+            last_err = ""
+            for fid in owner_field_ids:
+                res = requests.put(
+                    f"{JIRA_BASE}/issue/{issue_key}",
+                    auth=AUTH, headers=HEADERS,
+                    json={"fields": {fid: owner_doc}}
+                )
+                if res.ok:
+                    ok = True
+                    break
+                last_err = res.text
+            if not ok:
+                errors.append(f"負責人更新失敗：{last_err}")
         elif field == "結束日":
             fields_payload[FIELD_END] = value
         elif field == "進度說明":
