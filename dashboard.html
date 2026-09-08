@@ -239,8 +239,8 @@ const prioCls = p => p==="高"?"hi":p==="中"?"mid":"lo";
 // 逾期天數現在由後端 (app.py) 依「進行中/已完成」兩種狀態算好，直接帶在 t.overdue_days 裡，
 // 前端不再自己用瀏覽器的今天日期重算，邏輯統一、也不受時區影響。
 function daysLate(t){ return t.overdue_days || 0; }
-function isOverdue(t){ return t.end && daysLate(t) > 0; }
-function whoCell(owner){
+function isOverdue(t){ return t.end && !t.actual_end && daysLate(t) > 0; }
+  function whoCell(owner){
   if(!owner) return '<span style="color:var(--ink3)">未指派</span>';
   return esc(owner);
 }
