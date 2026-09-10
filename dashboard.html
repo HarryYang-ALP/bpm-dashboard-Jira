@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BPM Team Project Management Dashboard</title>
+<title>Project Management Dashboard</title>
 <style>
   :root{
     --bg1:#f1f2f9; --bg2:#f6f7fc; --bg3:#faf9fd;
@@ -76,6 +76,7 @@
   .donut svg{width:100%;height:100%;display:block}
   .donut .center{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
   .donut .center b{font-size:clamp(24px,4.5vw,42px);font-weight:800;letter-spacing:-.5px}
+  .donut .center b .unit{font-size:clamp(12px,1.2vw,14px);font-weight:600;letter-spacing:0;margin-left:2px}
   .donut .center small{display:block;font-size:clamp(12px,1.2vw,14px);color:var(--ink3);margin-top:2px}
   .legend{display:flex;flex-direction:column;gap:10px;flex:1;justify-content:center}
   .legend .row{display:flex;align-items:center;gap:6px;font-size:12px}
@@ -92,7 +93,7 @@
   .fixed-table th{font-size:11.5px;color:var(--ink3);text-align:left;font-weight:600;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .fixed-table td{font-size:13px;padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .fixed-table tr:last-child td{border-bottom:none}
-  .col-w1{width:20%}.col-w2{width:20%}.col-w3{width:14%}.col-w4{width:18%}.col-w5{width:18%}.col-w6{width:10%}
+  .col-w1{width:25%}.col-w2{width:25%}.col-w3{width:15%}.col-w4{width:15%}.col-w5{width:10%}.col-w6{width:10%}
   .track{height:13px;border-radius:999px;background:var(--grey-soft);overflow:hidden;display:flex}
   .track > span{height:100%;display:block}
   .track.bare{background:transparent;overflow:visible}
@@ -106,6 +107,23 @@
   .tg.hi{background:var(--red-soft);color:var(--red-ink)}
   .tg.mid{background:var(--coral-soft);color:var(--coral-ink)}
   .tg.lo{background:var(--grey-soft);color:var(--ink2)}
+  .decision-table{table-layout:fixed}
+  .decision-table col.dw1{width:20%}
+  .decision-table col.dw2{width:20%}
+  .decision-table col.dw3{width:10%}
+  .decision-table col.dw4{width:50%}
+  .decision-table th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .decision-table td{white-space:normal;word-break:break-word;line-height:1.6}
+  .decision-table td .tg{white-space:normal;word-break:break-word;max-width:100%}
+  .overdue-table{table-layout:fixed}
+  .overdue-table col.ow1{width:22%}
+  .overdue-table col.ow2{width:40%}
+  .overdue-table col.ow3{width:10%}
+  .overdue-table col.ow4{width:16%}
+  .overdue-table col.ow5{width:12%}
+  .overdue-table th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .overdue-table td{white-space:normal;word-break:break-word;line-height:1.6}
+  .overdue-table td .tg{white-space:normal;word-break:break-word;max-width:100%}
   .late{color:var(--red-ink);font-weight:700}
   .empty{text-align:center;padding:26px 10px;color:var(--ink3)}
   .empty .big{font-size:15px;color:var(--ink2);font-weight:700;margin-bottom:4px}
@@ -161,14 +179,14 @@
 <div class="wrap">
   <div class="topbar">
     <div class="brand">
-      <div><h1>BPM Team Project Management Dashboard</h1></div>
+      <div><h1>Team Project Management Dashboard</h1></div>
     </div>
     <div class="topmeta">
       <span class="chip"><span class="dot"></span>資料快照 <b id="snap"></b></span>
       <span class="chip">總專案數 <b id="projcount"></b></span>
     </div>
   </div>
-
+ 
   <div class="sec-h"><h2>Overview</h2></div>
   <div class="grid charts">
     <div id="kpis" style="display:contents"></div>
@@ -176,7 +194,7 @@
       <div class="card-h"><h3>狀態分佈</h3></div>
       <div class="donut-wrap">
         <div class="donut-area">
-          <div class="donut"><svg id="donut" viewBox="0 0 160 160"></svg>
+          <div class="donut"><svg id="donut" viewBox="-45 -45 250 250"></svg>
             <div class="center"><b id="donutcenter"></b><small>總任務</small></div>
           </div>
         </div>
@@ -192,36 +210,34 @@
       <div id="decision"></div>
     </div>
     <div class="card" style="grid-column:span 2">
-      <div class="card-h"><h3>⚠️ 進度異常</h3><span class="hint">已逾結束日且未完成</span></div>
+      <div class="card-h"><h3>⚠️ 進度異常</h3><span class="hint">狀態＝進行中 且 逾期天數 > 0</span></div>
       <div id="overdue"></div>
     </div>
   </div>
-
+ 
   <div class="sec-h"><h2>專案進度總覽</h2><span>點擊專案可展開任務明細</span></div>
   <div class="card"><div id="projects"></div></div>
-
+ 
   <div class="sec-h"><h2>各負責人任務</h2></div>
   <div class="owner-tabs-wrap" id="ownerTabs"></div>
   <div class="owner-panel" id="ownerPanel"></div>
-
+ 
   <div class="sec-h"><h2>工作看板</h2></div>
   <div class="kanban" id="kanban"></div>
-
+ 
   <div class="foot">
-    指標依定義即時計算：完成率＝已完成÷總任務；專案進度＝該專案各任務進度平均（含未開始）；落後＝結束日早於今日且實際完成日為空。<br>
-    資料來源 Notion · BPM Team teamspace（動態納入新專案）。本頁為快照，更新請對 Claude 說「更新 dashboard」。
+    指標依定義即時計算：專案進度＝該專案已完成任務數÷總任務數；「逾期天數」由後端（app.py）依「進行中/已完成」規則即時計算；「進度異常」僅計入狀態為進行中且逾期天數＞0的任務（已完成、未開始不計入，但各明細表的逾期天數欄仍會如實顯示計算結果）。<br>
+    資料來源: Jira（alp-bpmteam-dashboard.atlassian.net）。本頁為快照，更新請按最上方「🔄 更新資料」重新抓取。
   </div>
 </div>
-
+ 
 <script>
 /* === 資料注入點（由 app.py 以 JSON 帶入，勿手動修改標記字串） === */
 const SNAPSHOT_DATETIME = "__SNAPSHOT_DATETIME__"; // 顯示用，格式 YYYY-MM-DD HH:mm:ss
-const SNAPSHOT_DATE = SNAPSHOT_DATETIME.slice(0,10); // 內部日期運算（落後天數等）只取日期部分
 const TASKS = __TASKS_JSON__;
 // 分頁固定只顯示這三位，不受 TASKS 或注入資料影響（即使 owner 欄位出現其他人名也不會多出分頁）
 const OWNERS = ["Larry", "Harry", "Cindy"];
-
-const PHASE = {"需求確認":1,"Kick-off 會議":2,"Kick-off Meeting":2,"報價單簽回":3,"採購和付款方式確認":3,"開發":4,"部署":5,"UAT":6,"KUT":7,"技轉和驗收":8};
+ 
 const PRIO_RANK = {"高":0,"中":1,"低":2};
 function taskOrder(a,b){
   const pr=(PRIO_RANK[a.prio]??9)-(PRIO_RANK[b.prio]??9);
@@ -231,39 +247,48 @@ function taskOrder(a,b){
   if(!a.end && b.end) return 1;
   return 0;
 }
-
+ 
 const STC = {"未開始":"var(--grey)","進行中":"var(--orange)","已完成":"var(--blue)"};
-const today = new Date(SNAPSHOT_DATE+"T00:00:00+08:00");
 const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const prioCls = p => p==="高"?"hi":p==="中"?"mid":"lo";
-// 逾期天數現在由後端 (app.py) 依「進行中/已完成」兩種狀態算好，直接帶在 t.overdue_days 裡，
-// 前端不再自己用瀏覽器的今天日期重算，邏輯統一、也不受時區影響。
-function daysLate(t){ return t.overdue_days || 0; }
-function isOverdue(t){ return t.end && !t.actual_end && daysLate(t) > 0; }
-  function whoCell(owner){
+// 逾期天數直接來自後端算好的 overdue_days 欄位，不在前端重新計算
+function overdueCell(t){
+  if(t.overdue_days==null||t.overdue_days<=0) return '<span style="color:var(--ink3)">—</span>';
+  return '<span class="late">'+t.overdue_days+'天</span>';
+}
+function whoCell(owner){
   if(!owner) return '<span style="color:var(--ink3)">未指派</span>';
   return esc(owner);
 }
 function stPill(s){ return '<span class="st"><span class="sdot" style="background:'+STC[s]+'"></span>'+s+'</span>'; }
-
+// 已完成的任務，若「實際完成日」晚於「結束日期」（實際完成日 - 結束日期 > 0），
+// 則畫面上的「結束日」改顯示實際完成日；其餘情況仍顯示原本的結束日期。
+function displayEnd(t){
+  if(t.status==="已完成" && t.actual_end && t.end && t.actual_end > t.end) return t.actual_end;
+  return t.end;
+}
+ 
 const total = TASKS.length;
 const cnt = s => TASKS.filter(t=>t.status===s).length;
 const nInProg = cnt("進行中"), nDone = cnt("已完成"), nTodo = cnt("未開始");
 const decisionList = TASKS.filter(t=>t.decide==="待決議");
-const overdueList = TASKS.filter(t=>isOverdue(t)).sort((a,b)=>daysLate(b)-daysLate(a));
-
+// 「進度異常」／「落後任務件數」只計入狀態為「進行中」且逾期天數>0的任務
+// （已完成的任務即使逾期天數欄位仍有值，也不計入這裡；未開始的任務同樣不計入）
+const overdueList = TASKS.filter(t=>t.status==="進行中" && t.overdue_days>0).sort((a,b)=>b.overdue_days-a.overdue_days);
+ 
 const projOrder=[]; const projMap={};
 TASKS.forEach(t=>{ if(!projMap[t.proj]){projMap[t.proj]=[];projOrder.push(t.proj);} projMap[t.proj].push(t); });
 const projects = projOrder.map(name=>{
   const ts=projMap[name];
-  const avg=Math.round(ts.reduce((s,t)=>s+t.progress,0)/ts.length);
+  const done=ts.filter(t=>t.status==="已完成").length;
+  const avg=Math.round(done/ts.length*100);
   return {name, tasks:ts, avg, n:ts.length};
 }).sort((a,b)=>b.avg-a.avg);
-
+ 
 document.getElementById("snap").textContent = SNAPSHOT_DATETIME;
 document.getElementById("projcount").textContent = projects.length + " 個";
-document.getElementById("donutcenter").textContent = total;
-
+document.getElementById("donutcenter").innerHTML = total + '<span class="unit"> 件</span>';
+ 
 const kpiDefs = [
   {n:total, lbl:"總任務件數", sub:"", cls:"", ic:"i-navy",
    svg:'<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 6h16M4 12h16M4 18h10"/>'},
@@ -281,21 +306,37 @@ document.getElementById("kpis").innerHTML = kpiDefs.map(k=>`
     <div class="lbl">${k.lbl}</div>
     ${k.sub?`<div class="sub">${k.sub}</div>`:``}
   </div>`).join("");
-
+ 
 (function(){
   const segs=[{k:"已完成",v:nDone},{k:"進行中",v:nInProg},{k:"未開始",v:nTodo}];
-  const r=64, cx=80, cy=80, C=2*Math.PI*r; let off=0;
-  let svg='';
-  segs.forEach(s=>{ if(s.v<=0) return; const len=s.v/total*C;
+  const r=74, cx=80, cy=80, C=2*Math.PI*r; let off=0;
+  let svg='', labels='';
+  segs.forEach(s=>{ if(s.v<=0) return; const frac=total?s.v/total:0; const len=frac*C;
     svg+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${STC[s.k]}" stroke-width="20"
             stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}"
             transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
+    // 在圓餅圖每個色塊的中點角度、外側標示百分比（深灰色），並加一條細線連接環與文字
+    const midFrac = frac ? (off/C) + frac/2 : 0;
+    const angle = midFrac*2*Math.PI - Math.PI/2;
+    const rOuter = r + 30; // 環外側，留出間距避免與色塊重疊
+    const rLineStart = r + 10; // 線的起點：環的外緣（stroke-width 20，半寬 10）
+    const rLineEnd = rOuter - 7; // 線的終點：文字前一點，避免蓋住文字
+    const cosA = Math.cos(angle), sinA = Math.sin(angle);
+    const lx1 = cx + rLineStart*cosA, ly1 = cy + rLineStart*sinA;
+    const lx2 = cx + rLineEnd*cosA, ly2 = cy + rLineEnd*sinA;
+    const tx = cx + rOuter*cosA;
+    const ty = cy + rOuter*sinA;
+    const pct = Math.round(frac*100);
+    labels+=`<line x1="${lx1}" y1="${ly1}" x2="${lx2}" y2="${ly2}" stroke="#b9bccd" stroke-width="1.2"/>`;
+    labels+=`<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="700" fill="#555a64">${pct}%</text>`;
     off+=len; });
-  document.getElementById("donut").innerHTML=svg;
-  document.getElementById("donutlegend").innerHTML=segs.map(s=>`
-    <div class="row"><span class="sw" style="background:${STC[s.k]}"></span>${s.k}<span class="v">${s.v}</span></div>`).join("");
+  document.getElementById("donut").innerHTML=svg+labels;
+  document.getElementById("donutlegend").innerHTML=segs.map(s=>{
+    const pct = total?Math.round(s.v/total*100):0;
+    return `<div class="row"><span class="sw" style="background:${STC[s.k]}"></span>${s.k}<span class="v">${s.v} 件</span> (${pct}%)</div>`;
+  }).join("");
 })();
-
+ 
 const maxN=Math.max(...projects.map(p=>p.n));
 (function(){
   const legendHTML=`<div style="display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap">
@@ -317,7 +358,7 @@ const maxN=Math.max(...projects.map(p=>p.n));
     const grad=segs.length?`linear-gradient(90deg,${segs.join(",")})`:'';
     const tip=`未開始 ${nTd} ／ 進行中 ${nIp} ／ 已完成 ${nDn}`;
     return `<div class="bar-row">
-      <div class="top"><span class="name">${esc(p.name)}</span><span class="val">${p.n} 筆</span></div>
+      <div class="top"><span class="name">${esc(p.name)}</span><span class="val">${p.n} 件</span></div>
       <div class="track bare">
         <div class="bar-tip-wrap" style="width:${barW}%;height:13px;display:inline-block;vertical-align:top">
           <span style="display:block;width:100%;height:100%;border-radius:999px;background:${grad};cursor:pointer"></span>
@@ -328,23 +369,26 @@ const maxN=Math.max(...projects.map(p=>p.n));
   }).join("");
   document.getElementById("projbars").insertAdjacentHTML("beforeend", legendHTML+barsHTML);
 })();
-
+ 
 document.getElementById("decision").innerHTML = decisionList.length ? `
-  <table><thead><tr><th>專案</th><th>任務</th><th>負責人</th><th>待決議事項</th></tr></thead><tbody>
+  <table class="decision-table"><colgroup><col class="dw1"><col class="dw2"><col class="dw3"><col class="dw4"></colgroup>
+  <thead><tr><th>專案</th><th>任務</th><th>負責人</th><th>待決議事項</th></tr></thead><tbody>
   ${decisionList.map(t=>`<tr>
     <td><span class="tg proj">${esc(t.proj)}</span></td>
     <td>${esc(t.task)}</td><td>${whoCell(t.owner)}</td>
     <td>${esc(t.note)||'<span style="color:var(--ink3)">（未填說明）</span>'}</td></tr>`).join("")}
   </tbody></table>` : `<div class="empty"><div class="big">目前沒有待決議事項</div></div>`;
-
+ 
 document.getElementById("overdue").innerHTML = overdueList.length ? `
-  <table><thead><tr><th>專案</th><th>任務</th><th>負責人</th><th>預計完成</th><th>落後</th></tr></thead><tbody>
+  <table class="overdue-table"><colgroup><col class="ow1"><col class="ow2"><col class="ow3"><col class="ow4"><col class="ow5"></colgroup>
+  <thead><tr><th>專案</th><th>任務</th><th>負責人</th><th>結束日</th><th>逾期天數</th></tr></thead><tbody>
   ${overdueList.map(t=>`<tr>
     <td><span class="tg proj">${esc(t.proj)}</span></td>
     <td>${esc(t.task)}</td><td>${whoCell(t.owner)}</td>
-    <td>${esc(t.end)}</td><td class="late">${daysLate(t)} 天</td></tr>`).join("")}
+    <td>${t.end?esc(t.end):'<span style="color:var(--ink3)">—</span>'}</td>
+    <td class="late">${t.overdue_days}天</td></tr>`).join("")}
   </tbody></table>` : `<div class="empty"><div class="big">目前沒有落後任務</div></div>`;
-
+ 
 document.getElementById("projects").innerHTML = projects.map((p,i)=>`
   <div class="proj" id="proj${i}">
     <div class="proj-head" onclick="document.getElementById('proj${i}').classList.toggle('open')">
@@ -358,17 +402,17 @@ document.getElementById("projects").innerHTML = projects.map((p,i)=>`
     </div>
     <div class="proj-body">
       <table class="fixed-table"><colgroup><col class="col-w1"><col class="col-w2"><col class="col-w3"><col class="col-w4"><col class="col-w5"><col class="col-w6"></colgroup>
-      <thead><tr><th>任務</th><th>負責人</th><th>狀態</th><th>進度</th><th>結束日</th><th>優先</th></tr></thead><tbody>
+      <thead><tr><th>任務</th><th>負責人</th><th>狀態</th><th>結束日</th><th>逾期天數</th><th>優先</th></tr></thead><tbody>
       ${p.tasks.slice().sort(taskOrder).map(t=>`<tr>
         <td>${esc(t.task)}${t.decide==="待決議"?' <span class="tg hi">待決議</span>':t.decide==="已決議"?' <span class="tg lo">已決議</span>':''}</td>
         <td>${whoCell(t.owner)}</td><td>${stPill(t.status)}</td>
-        <td><span class="mini"><i style="width:${t.progress}%"></i></span> <span style="font-size:12px;font-weight:700">${t.progress}%</span></td>
-        <td>${t.end?esc(t.end):'<span style="color:var(--ink3)">—</span>'}${isOverdue(t)?' <span class="late" style="font-size:11px">逾'+daysLate(t)+'天</span>':''}</td>
+        <td>${displayEnd(t)?esc(displayEnd(t)):'<span style="color:var(--ink3)">—</span>'}</td>
+        <td>${overdueCell(t)}</td>
         <td><span class="tg ${prioCls(t.prio)}">${t.prio}</span></td></tr>`).join("")}
       </tbody></table>
     </div>
   </div>`).join("");
-
+ 
 document.getElementById("kanban").innerHTML = ["未開始","進行中","已完成"].map(st=>{
   const items=TASKS.filter(t=>t.status===st);
   const cards = items.length ? items.map(t=>`<div class="kc" style="border-left-color:${STC[st]}">
@@ -382,7 +426,7 @@ document.getElementById("kanban").innerHTML = ["未開始","進行中","已完�
     <div class="col-body">${cards}</div>
   </div>`;
 }).join("");
-
+ 
 (function(){
   function ownerTasks(name){
     const projRank={};
@@ -400,13 +444,13 @@ document.getElementById("kanban").innerHTML = ["未開始","進行中","已完�
   function ownerTable(tasks){
     if(!tasks.length) return '<div class="empty"><div class="sm">此人目前沒有任務</div></div>';
     return `<table class="fixed-table"><colgroup><col class="col-w1"><col class="col-w2"><col class="col-w3"><col class="col-w4"><col class="col-w5"><col class="col-w6"></colgroup>
-    <thead><tr><th>專案</th><th>任務</th><th>狀態</th><th>進度</th><th>結束日</th><th>優先</th></tr></thead><tbody>
+    <thead><tr><th>專案</th><th>任務</th><th>狀態</th><th>結束日</th><th>逾期天數</th><th>優先</th></tr></thead><tbody>
     ${tasks.map(t=>`<tr>
       <td><span class="tg proj">${esc(t.proj)}</span></td>
       <td>${esc(t.task)}${t.decide==="待決議"?' <span class="tg hi">待決議</span>':''}</td>
       <td>${stPill(t.status)}</td>
-      <td><span class="mini"><i style="width:${t.progress}%"></i></span> <span style="font-size:12px;font-weight:700">${t.progress}%</span></td>
-      <td>${t.end?esc(t.end):'<span style="color:var(--ink3)">—</span>'}${isOverdue(t)?' <span class="late" style="font-size:11px">逾'+daysLate(t)+'天</span>':''}</td>
+      <td>${displayEnd(t)?esc(displayEnd(t)):'<span style="color:var(--ink3)">—</span>'}</td>
+      <td>${overdueCell(t)}</td>
       <td><span class="tg ${prioCls(t.prio)}">${t.prio}</span></td>
     </tr>`).join("")}</tbody></table>`;
   }
@@ -424,19 +468,22 @@ document.getElementById("kanban").innerHTML = ["未開始","進行中","已完�
     postHeight();
   });
 })();
-
+ 
 /* === Streamlit iframe 自動撐高：避免內容被截斷 === */
 function postHeight(){
   var h = Math.max(
     document.documentElement.scrollHeight,
     document.body.scrollHeight,
     document.documentElement.offsetHeight
-  ) + 20;
+  ) + 20; // 多留一點緩衝，避免邊界剛好被裁到
+  // 方法一（主要）：這個 iframe 是用 srcdoc 塞進 Streamlit 頁面的，跟外層同源，
+  // 可以直接改自己所在 iframe 元素的高度，不依賴 Streamlit 是否認得下面那個訊息格式。
   try{
     if(window.frameElement){
       window.frameElement.style.height = h + "px";
     }
   }catch(e){}
+  // 方法二（保險）：同時也送 Streamlit 官方協定的訊息，兩種方式擇一生效即可。
   try{
     window.parent.postMessage({
       isStreamlitMessage:true,
@@ -447,7 +494,7 @@ function postHeight(){
 }
 window.addEventListener("load", function(){ postHeight(); setTimeout(postHeight,200); setTimeout(postHeight,600); setTimeout(postHeight,1200); });
 window.addEventListener("resize", postHeight);
-document.addEventListener("click", function(){ setTimeout(postHeight,300); });
+document.addEventListener("click", function(){ setTimeout(postHeight,300); }); // 展開專案 / 切換分頁後重新量測
 try{ new ResizeObserver(function(){ postHeight(); }).observe(document.body); }catch(e){}
 </script>
 </body>
