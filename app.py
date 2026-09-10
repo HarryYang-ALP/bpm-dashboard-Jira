@@ -360,6 +360,70 @@ def update_jira_issue(issue_key: str, updates: dict):
     return errors
 
 
+def call_gemini_with_retry(sys_prompt: str, history: list, max_retries: int = 2):
+    """呼叫 Gemini API，並加上重試機制、明確的錯誤判斷，避免小幫手「卡住不回應」或
+    回傳一個看不懂的原始錯誤訊息（例如單純顯示 KeyError: 'candidates'）。
+
+    回傳 (成功與否: bool, 文字內容或錯誤訊息: str)
+    """
+    last_err = "未知錯誤"
+    for attempt in range(max_retries + 1):
+        try:
+            r = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}",
+                json={"system_instruction": {"parts": [{"text": sys_prompt}]}, "contents": history},
+                timeout=20,
+            )
+        except requests.exceptions.Timeout:
+            last_err = "Gemini 回應超過 20 秒沒有結果（逾時）"
+            continue  # 逾時值得重試一次
+        except requests.exceptions.ConnectionError:
+            last_err = "無法連線到 Gemini API（網路問題）"
+            continue
+
+        # 明確依 HTTP 狀態碼判斷，不要讓後面的 .json() 解析在錯誤情況下丟出看不懂的例外
+        if r.status_code == 429:
+            last_err = "Gemini API 已達流量上限（429），請稍後再試"
+            continue  # 值得重試
+        if r.status_code in (401, 403):
+            return False, "Gemini API 金鑰無效或權限不足，請檢查 Streamlit secrets 裡的 GEMINI_API_KEY"
+        if r.status_code >= 500:
+            last_err = f"Gemini 伺服器端錯誤（{r.status_code}）"
+            continue  # 伺服器暫時性問題，值得重試
+        if r.status_code != 200:
+            return False, f"Gemini API 回傳非預期狀態碼：{r.status_code}"
+
+        try:
+            data = r.json()
+        except ValueError:
+            last_err = "Gemini 回傳的內容不是合法的 JSON"
+            continue
+
+        candidates = data.get("candidates") or []
+        if not candidates:
+            # 常見於被安全性過濾器擋下（沒有候選回答）
+            block_reason = (data.get("promptFeedback") or {}).get("blockReason")
+            if block_reason:
+                return False, f"這則訊息被 Gemini 的安全性過濾器擋下（原因：{block_reason}），請換個問法"
+            last_err = "Gemini 沒有回傳任何候選回答"
+            continue
+
+        finish_reason = candidates[0].get("finishReason")
+        parts = ((candidates[0].get("content") or {}).get("parts")) or []
+        if not parts or "text" not in parts[0]:
+            if finish_reason == "SAFETY":
+                return False, "這則訊息的回答被安全性過濾器擋下，請換個問法"
+            if finish_reason == "MAX_TOKENS":
+                last_err = "回答內容被截斷（超過長度上限）"
+                continue
+            last_err = f"Gemini 回應格式異常（finishReason: {finish_reason}）"
+            continue
+
+        return True, parts[0]["text"]
+
+    return False, f"重試 {max_retries} 次後仍失敗：{last_err}"
+
+
 with st.spinner("從 Jira 載入資料中..."):
     tasks, errors = fetch_all_tasks()
 
@@ -470,9 +534,39 @@ if st.session_state.show_chat:
                 "進度說明": t.get("prog_note", ""),
             } for t in tasks], ensure_ascii=False)
 
+            # 統計類數字（總數、已完成數...）先用 Python 精確算好，不要讓語言模型自己
+            # 從一大包任務清單裡「數」——任務一多，AI 用數的很容易數錯或用估的，
+            # 這是語言模型本身不擅長精確計數的通病，先把答案算好直接告訴它最可靠。
+            _n_total = len(tasks)
+            _n_done = sum(1 for t in tasks if t.get("status") == "已完成")
+            _n_inprog = sum(1 for t in tasks if t.get("status") == "進行中")
+            _n_todo = sum(1 for t in tasks if t.get("status") == "未開始")
+            _n_overdue = sum(1 for t in tasks if t.get("status") == "進行中" and (t.get("overdue_days") or 0) > 0)
+            _n_decide = sum(1 for t in tasks if t.get("decide") == "待決議")
+            _proj_names = sorted(set(t.get("proj", "") for t in tasks))
+            _n_by_proj = {p: sum(1 for t in tasks if t.get("proj") == p) for p in _proj_names}
+            _done_by_proj = {p: sum(1 for t in tasks if t.get("proj") == p and t.get("status") == "已完成") for p in _proj_names}
+            stats_summary = json.dumps({
+                "總任務件數": _n_total,
+                "已完成件數": _n_done,
+                "進行中件數": _n_inprog,
+                "未開始件數": _n_todo,
+                "落後任務件數": _n_overdue,
+                "須優先決議件數": _n_decide,
+                "各專案總任務數": _n_by_proj,
+                "各專案已完成數": _done_by_proj,
+            }, ensure_ascii=False)
+
             _sys = f"""你是 BPM Team 的專案進度助理，可以回答問題也可以協助更新 Jira 任務資料。
 資料快照：{today_str}
-任務資料：{tasks_summary}
+
+【已經算好的統計數字（極重要）】
+{stats_summary}
+如果使用者問的是「總共/已完成/進行中/未開始/逾期/須決議 有幾件」這類統計性問題，
+或是問某個專案有幾件、已完成幾件，一律直接引用上面這包已經算好的數字回答，
+絕對不要自己重新從下面的任務清單一筆一筆數，你數的結果不可靠，這包數字才是正確答案。
+
+任務資料（明細，用於查詢特定任務、負責人、日期等非統計性問題）：{tasks_summary}
 
 【回答規則】
 1. 若使用者在問問題，用繁體中文簡潔回答。回答時不要顯示 Jira issue key（如 BPM-8、AHP-4 等），只用專案名稱和任務名稱表示。
@@ -497,14 +591,15 @@ if st.session_state.show_chat:
             with chat_container:
                 with st.chat_message("assistant"):
                     with st.spinner("處理中..."):
-                        try:
-                            _r = requests.post(
-                                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}",
-                                json={"system_instruction": {"parts": [{"text": _sys}]}, "contents": st.session_state.ad_hist},
-                                timeout=30,
-                            )
-                            _reply = _r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                        ok, result = call_gemini_with_retry(_sys, st.session_state.ad_hist)
 
+                        if not ok:
+                            # 明確顯示是哪種問題（逾時／流量上限／金鑰錯誤／安全性過濾...），
+                            # 不再讓使用者看到一串看不懂的原始例外文字。
+                            _reply = f"⚠️ {result}"
+                            st.markdown(_reply)
+                        else:
+                            _reply = result
                             # 嘗試解析是否為更新指令
                             try:
                                 _clean = _reply.strip().strip("```json").strip("```").strip()
@@ -516,12 +611,14 @@ if st.session_state.show_chat:
                                 pass  # 不是 JSON，當一般回答處理
 
                             st.markdown(_reply)
-                        except Exception as e:
-                            _reply = f"錯誤：{e}"
-                            st.markdown(_reply)
 
             st.session_state.ad_msg.append({"role": "assistant", "content": _reply})
             st.session_state.ad_hist.append({"role": "model", "parts": [{"text": _reply}]})
+            # 對話歷史每次都會整包送給 Gemini，放著不管會越滾越大（越用越慢，甚至可能
+            # 超過長度限制報錯）。只保留最近 20 則（約 10 輪對話），避免無限累積。
+            MAX_HIST = 20
+            if len(st.session_state.ad_hist) > MAX_HIST:
+                st.session_state.ad_hist = st.session_state.ad_hist[-MAX_HIST:]
             st.rerun()
 else:
     components.html(html, height=1200, scrolling=False)
