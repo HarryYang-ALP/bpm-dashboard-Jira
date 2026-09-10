@@ -92,13 +92,19 @@ with btn_area:
 
 
 def _doc_to_text(v):
-    """把 Jira 的 ADF (Atlassian Document Format) 段落轉成純文字；
-    也相容欄位本身就是純文字字串的情況。"""
+    """把 Jira 欄位值轉成純文字，相容三種常見格式：
+    1. 純字串
+    2. 段落文字欄位（ADF doc，如 {"type":"doc","content":[...]}）
+    3. 選單/下拉選項欄位（Select List，如 {"value":"已決議","id":"..."}）
+    """
     if v is None:
         return ""
     if isinstance(v, str):
         return v
     if isinstance(v, dict):
+        # 選單類型欄位：直接有 "value" 這個 key，沒有 "content"
+        if "value" in v and "content" not in v:
+            return v.get("value") or ""
         out = []
         for c in v.get("content", []):
             if c.get("type") == "paragraph":
@@ -338,7 +344,9 @@ def update_jira_issue(issue_key: str, updates: dict):
             if not fid:
                 errors.append(f"這個專案（{proj_key}）沒有「須優先決議」欄位，無法更新")
             else:
-                fields_payload[fid] = text_doc(value)
+                # 這個欄位目前是「選單/下拉選項」類型，寫入格式跟純文字段落不同，
+                # 用 {"value": "已決議"} 這種選項格式，不能再用 text_doc()。
+                fields_payload[fid] = {"value": value}
 
     if fields_payload:
         res = requests.put(
