@@ -25,6 +25,24 @@
     --r:22px; --r-sm:14px;
     --font:"Inter",system-ui,-apple-system,"Segoe UI","PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;
   }
+  /* 深色模式：只覆寫顏色類變數，版面/間距/字體大小完全不動 */
+  html[data-theme="dark"]{
+    --bg1:#131120; --bg2:#161329; --bg3:#191531;
+    --ink:#ece9f7; --ink2:#b3aed0; --ink3:#867fa8;
+    --card:#201c33; --card2:#282341;
+    --purple:#a396ff; --purple-soft:rgba(139,126,240,.22);
+    --coral:#ff9d76; --coral-soft:rgba(244,132,95,.20); --coral-ink:#ffab7d;
+    --blue:#5cb3ff; --blue-soft:rgba(59,155,232,.20);
+    --orange:#ffb066; --orange-soft:rgba(249,115,22,.20);
+    --mint:#6fe0bb; --mint-soft:rgba(87,196,163,.20);
+    --red:#ff8aa1; --red-soft:rgba(232,96,122,.20); --red-ink:#ff9db0;
+    --grey:#8a86a8; --grey-soft:rgba(185,188,205,.16);
+    --line:rgba(255,255,255,.08);
+    --shadow:0 18px 40px -22px rgba(0,0,0,.65), 0 2px 6px -2px rgba(0,0,0,.35);
+    --shadow-soft:0 10px 24px -16px rgba(0,0,0,.55);
+  }
+  /* --navy 刻意不隨深色模式改變：它只拿來當 tooltip 底色（配白字），
+     兩種模式都維持固定的深色底、白字，不然深色模式下 tooltip 會變成淺底白字看不到 */
   *{box-sizing:border-box}
   html,body{margin:0}
   body{
@@ -46,6 +64,14 @@
   .chip{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--line);
     color:var(--ink2);font-size:12.5px;padding:8px 13px;border-radius:999px;box-shadow:var(--shadow-soft)}
   .chip b{color:var(--ink);font-weight:700}
+  .theme-toggle{
+    width:34px;height:34px;border-radius:999px;border:1px solid var(--line);
+    background:var(--card);cursor:pointer;font-size:16px;line-height:1;
+    display:inline-flex;align-items:center;justify-content:center;
+    box-shadow:var(--shadow-soft);transition:background .15s,transform .15s;
+  }
+  .theme-toggle:hover{transform:scale(1.06)}
+  body,.card,.kpi,.col,.owner-panel,.proj{transition:background-color .2s ease, color .2s ease, border-color .2s ease}
   .dot{width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 4px var(--mint-soft)}
   .sec-h{display:flex;align-items:baseline;gap:10px;margin:26px 4px 13px}
   .sec-h h2{font-size:16px;margin:0;letter-spacing:.2px;font-weight:600}
@@ -187,6 +213,7 @@
     <div class="topmeta">
       <span class="chip"><span class="dot"></span>資料快照 <b id="snap"></b></span>
       <span class="chip">總專案數 <b id="projcount"></b></span>
+      <button id="themeToggle" class="theme-toggle" type="button" aria-label="切換深淺模式" title="切換深淺模式">🌙</button>
     </div>
   </div>
  
@@ -236,6 +263,38 @@
  
 <script>
 /* === 資料注入點（由 app.py 以 JSON 帶入，勿手動修改標記字串） === */
+/* === 深淺模式切換：用 localStorage 記住使用者上次的選擇 === */
+(function(){
+  const KEY = "bpm-dashboard-theme";
+  const root = document.documentElement;
+  const btn = document.getElementById("themeToggle");
+
+  function applyTheme(theme){
+    if(theme === "dark"){
+      root.setAttribute("data-theme", "dark");
+      if(btn) btn.textContent = "☀️";
+    } else {
+      root.removeAttribute("data-theme");
+      if(btn) btn.textContent = "🌙";
+    }
+  }
+
+  let saved = null;
+  try { saved = localStorage.getItem(KEY); } catch(e) {}
+  // 沒存過的話，跟隨系統目前的深淺模式偏好
+  const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applyTheme(saved || (prefersDark ? "dark" : "light"));
+
+  if(btn){
+    btn.addEventListener("click", function(){
+      const isDark = root.getAttribute("data-theme") === "dark";
+      const next = isDark ? "light" : "dark";
+      applyTheme(next);
+      try { localStorage.setItem(KEY, next); } catch(e) {}
+    });
+  }
+})();
+
 const SNAPSHOT_DATETIME = "__SNAPSHOT_DATETIME__"; // 顯示用，格式 YYYY-MM-DD HH:mm:ss
 const TASKS = __TASKS_JSON__;
 // 分頁固定只顯示這三位，不受 TASKS 或注入資料影響（即使 owner 欄位出現其他人名也不會多出分頁）
@@ -330,8 +389,8 @@ document.getElementById("kpis").innerHTML = kpiDefs.map(k=>`
     const tx = cx + rOuter*cosA;
     const ty = cy + rOuter*sinA;
     const pct = Math.round(frac*100);
-    labels+=`<line x1="${lx1}" y1="${ly1}" x2="${lx2}" y2="${ly2}" stroke="#b9bccd" stroke-width="1.2"/>`;
-    labels+=`<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="700" fill="#555a64">${pct}%</text>`;
+    labels+=`<line x1="${lx1}" y1="${ly1}" x2="${lx2}" y2="${ly2}" style="stroke:var(--grey)" stroke-width="1.2"/>`;
+    labels+=`<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="700" style="fill:var(--ink2)">${pct}%</text>`;
     off+=len; });
   document.getElementById("donut").innerHTML=svg+labels;
   document.getElementById("donutlegend").innerHTML=segs.map(s=>{
