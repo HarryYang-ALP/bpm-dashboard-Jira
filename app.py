@@ -30,22 +30,26 @@ st.markdown(
 #   JIRA_DOMAIN = "alp-bpmteam-dashboard.atlassian.net"
 #   JIRA_EMAIL = "harry.yang@alp.global"
 #   JIRA_API_TOKEN = "..."   (Jira 帳號設定 -> Security -> API tokens 建立)
+#   GEMINI_API_KEY = "..."   (Dashboard 小幫手用)
 JIRA_DOMAIN = st.secrets["JIRA_DOMAIN"]
 JIRA_EMAIL = st.secrets["JIRA_EMAIL"]
 JIRA_API_TOKEN = st.secrets["JIRA_API_TOKEN"]
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 
 JIRA_BASE = f"https://{JIRA_DOMAIN}/rest/api/3"
 AUTH = HTTPBasicAuth(JIRA_EMAIL, JIRA_API_TOKEN)
-HEADERS = {"Accept": "application/json"}
+HEADERS = {"Accept": "application/json", "Content-Type": "application/json"}
 
 # Jira site 上的範例／示範專案，掃描全部專案時排除
 EXCLUDE_PROJECT_KEYS = {"SAM1", "KAN"}
 
-# ⚠️ 重要：不同專案即使欄位「顯示名稱」相同（例如都叫「結束日期」），
+# 重要：不同專案即使欄位「顯示名稱」相同（例如都叫「結束日期」），
 # Jira 背後產生的 customfield ID 可能完全不同（實測發現 BPM 用 customfield_10048，
 # AHP 卻是 customfield_10137）。原因是在 Team-managed 專案加欄位時，
 # 就算打一樣的名字，Jira 也可能建立一個全新的自訂欄位，而不是重複使用既有的。
 # 因此不能把 ID 寫死，必須在執行時依「顯示名稱」動態查詢每個專案實際對應的 ID。
+# 這個機制涵蓋所有會因專案不同而 ID 不同的欄位（包含負責人、結束日期、進度說明...），
+# 讀取跟「小幫手」寫入都走同一套，不會再有「這個專案讀得到、那個專案讀不到」的落差。
 FIELD_DISPLAY_NAMES = {
     "start": "開始日期",
     "end": "結束日期",
@@ -57,12 +61,34 @@ FIELD_DISPLAY_NAMES = {
     "priority_custom": "優先順序",
 }
 
-# ── 更新資料按鈕 ──
-col1, _ = st.columns([1, 9])
-with col1:
-    if st.button("🔄 更新資料"):
-        st.cache_data.clear()
-        st.rerun()
+STATUS_TRANSITION = {"未開始": "2", "進行中": "3", "已完成": "5"}
+
+# ── 初始化 session state（Dashboard 小幫手用）──
+if "show_chat" not in st.session_state:
+    st.session_state.show_chat = False
+if "ad_msg" not in st.session_state:
+    st.session_state.ad_msg = []
+if "ad_hist" not in st.session_state:
+    st.session_state.ad_hist = []
+if "pending_update" not in st.session_state:
+    st.session_state.pending_update = None
+
+# ── 按鈕列 ──
+btn_area, _ = st.columns([1, 3])
+with btn_area:
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        if st.button(
+            "💬 Dashboard 小幫手",
+            type="primary" if st.session_state.show_chat else "secondary",
+            use_container_width=True,
+        ):
+            st.session_state.show_chat = not st.session_state.show_chat
+            st.rerun()
+    with c2:
+        if st.button("🔄 更新資料", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
 
 
 def _doc_to_text(v):
@@ -184,7 +210,6 @@ def fetch_all_tasks():
         proj_name = proj["name"]
         try:
             field_map = get_project_field_map(proj_key)
-            # 這個專案裡，上述欄位有出現的才需要跟 Jira 要，其餘固定要 summary/status/priority
             wanted_field_ids = list(set(field_map.values()))
             request_fields = ["summary", "status", "priority"] + wanted_field_ids
 
@@ -227,6 +252,7 @@ def fetch_all_tasks():
                     progress = 100 if status == "已完成" else (0 if status == "未開始" else 50)
 
                     tasks.append({
+                        "issue_key": issue["key"],
                         "proj": proj_name,
                         "task": f.get("summary", ""),
                         "owner": _doc_to_text(get_field("owner")),
@@ -249,6 +275,81 @@ def fetch_all_tasks():
             errors.append(f"{proj_name}: {e}")
 
     return tasks, errors
+
+
+def update_jira_issue(issue_key: str, updates: dict):
+    """updates: dict，key 為欄位顯示名稱（狀態/負責人/結束日/進度說明/優先/須決議），value 為新值。
+
+    這個 issue 屬於哪個專案，就用哪個專案自己的欄位 ID（透過 get_project_field_map
+    動態解析），不再寫死 BPM 的 ID——否則對 AHP、VVTE 等其他專案的 issue 下手，
+    很可能寫進一個完全不相關的欄位。
+    """
+    errors = []
+    proj_key = issue_key.split("-")[0]
+    field_map = get_project_field_map(proj_key)
+    fields_payload = {}
+
+    def text_doc(text):
+        return {"type": "doc", "version": 1, "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}]}
+
+    for field, value in updates.items():
+        if field == "狀態":
+            tid = STATUS_TRANSITION.get(value)
+            if tid:
+                res = requests.post(
+                    f"{JIRA_BASE}/issue/{issue_key}/transitions",
+                    auth=AUTH, headers=HEADERS,
+                    json={"transition": {"id": tid}},
+                )
+                if not res.ok:
+                    errors.append(f"狀態更新失敗：{res.text}")
+        elif field == "負責人":
+            fid = field_map.get("owner")
+            if not fid:
+                errors.append(f"這個專案（{proj_key}）沒有「負責人」欄位，無法更新")
+            else:
+                res = requests.put(
+                    f"{JIRA_BASE}/issue/{issue_key}",
+                    auth=AUTH, headers=HEADERS,
+                    json={"fields": {fid: text_doc(value)}},
+                )
+                if not res.ok:
+                    errors.append(f"負責人更新失敗：{res.text}")
+        elif field == "結束日":
+            fid = field_map.get("end")
+            if not fid:
+                errors.append(f"這個專案（{proj_key}）沒有「結束日期」欄位，無法更新")
+            else:
+                fields_payload[fid] = value
+        elif field == "進度說明":
+            fid = field_map.get("prog_note")
+            if not fid:
+                errors.append(f"這個專案（{proj_key}）沒有「進度說明」欄位，無法更新")
+            else:
+                fields_payload[fid] = text_doc(value)
+        elif field == "優先":
+            fid = field_map.get("priority_custom")
+            if not fid:
+                errors.append(f"這個專案（{proj_key}）沒有「優先順序」自訂欄位，無法更新")
+            else:
+                fields_payload[fid] = text_doc(value)
+        elif field == "須決議":
+            fid = field_map.get("decide")
+            if not fid:
+                errors.append(f"這個專案（{proj_key}）沒有「須優先決議」欄位，無法更新")
+            else:
+                fields_payload[fid] = text_doc(value)
+
+    if fields_payload:
+        res = requests.put(
+            f"{JIRA_BASE}/issue/{issue_key}",
+            auth=AUTH, headers=HEADERS,
+            json={"fields": fields_payload},
+        )
+        if not res.ok:
+            errors.append(f"欄位更新失敗：{res.text}")
+
+    return errors
 
 
 with st.spinner("從 Jira 載入資料中..."):
@@ -276,5 +377,143 @@ if not HTML_PATH.exists():
 html = HTML_PATH.read_text(encoding="utf-8")
 html = html.replace("__SNAPSHOT_DATETIME__", today_str)
 html = html.replace("__TASKS_JSON__", tasks_json)
+html = html.replace("__GEMINI_API_KEY__", GEMINI_API_KEY)
 
-components.html(html, height=1200, scrolling=False)
+# ── Dashboard 小幫手 ──
+if st.session_state.show_chat:
+    chat_col, dash_col = st.columns([1, 2])
+    with dash_col:
+        components.html(html, height=1200, scrolling=False)
+    with chat_col:
+        st.markdown(
+            """
+            <style>
+            .chat-header {
+                background: white; border: 1px solid #e8eaed; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                border-radius: 12px;
+                padding: 16px 20px;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .chat-header img { width: 32px; height: 32px; object-fit: contain; }
+            .chat-header h3 { color: #202124; margin: 0; font-size: 16px; font-weight: 600; }
+            .chat-header p { color: #80868b; margin: 0; font-size: 12px; }
+            </style>
+            <div class="chat-header">
+                <img src="https://raw.githubusercontent.com/HarryYang-ALP/AD-chatbot/main/logo.png" alt="ALP">
+                <div>
+                    <h3>Dashboard 小幫手</h3>
+                    <p>可詢問專案進度或直接更新任務資料</p>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # 確認更新的 UI
+        if st.session_state.pending_update:
+            pu = st.session_state.pending_update
+            st.warning(f"**確認修改：**\n\n任務：**{pu['task']}**（{pu['issue_key']}）\n\n修改內容：{pu['description']}")
+            col_y, col_n = st.columns(2)
+            with col_y:
+                if st.button("✅ 確認", use_container_width=True):
+                    errs = update_jira_issue(pu["issue_key"], pu["updates"])
+                    if errs:
+                        st.error("\n".join(errs))
+                    else:
+                        st.success("✅ 更新成功！")
+                        st.session_state.pending_update = None
+                        st.session_state.ad_msg.append({"role": "assistant", "content": f"✅ 已成功更新 **{pu['task']}**：{pu['description']}"})
+                        st.cache_data.clear()
+                        st.rerun()
+            with col_n:
+                if st.button("❌ 取消", use_container_width=True):
+                    st.session_state.pending_update = None
+                    st.session_state.ad_msg.append({"role": "assistant", "content": "已取消更新。"})
+                    st.rerun()
+
+        chat_container = st.container(height=400)
+        with chat_container:
+            for m in st.session_state.ad_msg:
+                with st.chat_message(m["role"]):
+                    st.markdown(m["content"])
+
+        if prompt := st.chat_input("問我專案進度，或說「把 XX 任務狀態改成進行中」", key="ad_chat"):
+            st.session_state.ad_msg.append({"role": "user", "content": prompt})
+            st.session_state.ad_hist.append({"role": "user", "parts": [{"text": prompt}]})
+            with chat_container:
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+
+            # 任務清單摘要給 AI
+            tasks_summary = json.dumps([{
+                "issue_key": t.get("issue_key", ""),
+                "專案": t.get("proj", ""),
+                "任務": t.get("task", ""),
+                "狀態": t.get("status", ""),
+                "負責人": t.get("owner", ""),
+                "進度": str(t.get("progress", "")) + "%",
+                "結束日": t.get("end", ""),
+                "逾期天數": t.get("overdue_days", 0),
+                "須決議": t.get("decide", ""),
+                "優先": t.get("prio", ""),
+                "進度說明": t.get("prog_note", ""),
+            } for t in tasks], ensure_ascii=False)
+
+            _sys = f"""你是 BPM Team 的專案進度助理，可以回答問題也可以協助更新 Jira 任務資料。
+資料快照：{today_str}
+任務資料：{tasks_summary}
+
+【回答規則】
+1. 若使用者在問問題，用繁體中文簡潔回答。回答時不要顯示 Jira issue key（如 BPM-8、AHP-4 等），只用專案名稱和任務名稱表示。
+2. 若使用者要修改任務資料，請回傳以下 JSON 格式（只回傳 JSON，不要其他文字）：
+{{
+  "action": "update",
+  "issue_key": "BPM-X",
+  "task": "任務名稱",
+  "description": "把XX改成YY",
+  "updates": {{
+    "狀態": "已完成"
+  }}
+}}
+3. 嚴格規則：
+   - 只修改使用者明確指定的那一個任務，絕對不能同時修改其他任務。
+   - "進度" 欄位由系統根據狀態自動計算（已完成=100%，未開始=0%，進行中=50%），不需要也不能單獨修改進度。
+   - 可修改的欄位只有：狀態（未開始/進行中/已完成）、負責人、結束日（YYYY-MM-DD）、進度說明、優先、須決議。
+   - 一次只處理一個任務的修改指令，若使用者提到多個任務請分次確認。
+4. 若找不到對應任務請說明。"""
+
+            _reply = "抱歉，發生錯誤。"
+            with chat_container:
+                with st.chat_message("assistant"):
+                    with st.spinner("處理中..."):
+                        try:
+                            _r = requests.post(
+                                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}",
+                                json={"system_instruction": {"parts": [{"text": _sys}]}, "contents": st.session_state.ad_hist},
+                                timeout=30,
+                            )
+                            _reply = _r.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+                            # 嘗試解析是否為更新指令
+                            try:
+                                _clean = _reply.strip().strip("```json").strip("```").strip()
+                                _cmd = json.loads(_clean)
+                                if _cmd.get("action") == "update":
+                                    st.session_state.pending_update = _cmd
+                                    _reply = f"我準備幫你修改 **{_cmd['task']}**：{_cmd['description']}\n\n請確認是否執行？"
+                            except Exception:
+                                pass  # 不是 JSON，當一般回答處理
+
+                            st.markdown(_reply)
+                        except Exception as e:
+                            _reply = f"錯誤：{e}"
+                            st.markdown(_reply)
+
+            st.session_state.ad_msg.append({"role": "assistant", "content": _reply})
+            st.session_state.ad_hist.append({"role": "model", "parts": [{"text": _reply}]})
+            st.rerun()
+else:
+    components.html(html, height=1200, scrolling=False)
