@@ -239,12 +239,12 @@ const TASKS = __TASKS_JSON__;
 const OWNERS = ["Larry", "Harry", "Cindy"];
  
 const PRIO_RANK = {"高":0,"中":1,"低":2};
+// 每個專案內的任務，依「開始日期」由遠到近（舊到新）排序；
+// 沒有開始日期的任務排在最後面，避免插在中間打斷時間軸。
 function taskOrder(a,b){
-  const pr=(PRIO_RANK[a.prio]??9)-(PRIO_RANK[b.prio]??9);
-  if(pr!==0) return pr;
-  if(a.end && b.end) return a.end < b.end ? -1 : a.end > b.end ? 1 : 0;
-  if(a.end && !b.end) return -1;
-  if(!a.end && b.end) return 1;
+  if(a.start && b.start) return a.start < b.start ? -1 : a.start > b.start ? 1 : 0;
+  if(a.start && !b.start) return -1;
+  if(!a.start && b.start) return 1;
   return 0;
 }
  
