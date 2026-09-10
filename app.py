@@ -72,13 +72,11 @@ if "ad_hist" not in st.session_state:
     st.session_state.ad_hist = []
 if "pending_update" not in st.session_state:
     st.session_state.pending_update = None
-if "weekly_report" not in st.session_state:
-    st.session_state.weekly_report = None
 
 # ── 按鈕列 ──
 btn_area, _ = st.columns([1, 3])
 with btn_area:
-    c1, c2, c3 = st.columns([2, 1, 1])
+    c1, c2 = st.columns([2, 1])
     with c1:
         if st.button(
             "💬 Dashboard 小幫手",
@@ -91,8 +89,6 @@ with btn_area:
         if st.button("🔄 更新資料", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-    with c3:
-        gen_report_clicked = st.button("📄 產生週報", use_container_width=True)
 
 
 def _doc_to_text(v):
@@ -428,109 +424,6 @@ def call_gemini_with_retry(sys_prompt: str, history: list, max_retries: int = 2)
     return False, f"重試 {max_retries} 次後仍失敗：{last_err}"
 
 
-def compute_stats(tasks: list) -> dict:
-    """精確算好各種統計數字，供小幫手回答統計問題、以及自動風險摘要共用。
-    這裡算的結果是唯一真相來源，不管是聊天室還是自動摘要都不應該自己另外用 AI 去數。
-    """
-    proj_names = sorted(set(t.get("proj", "") for t in tasks))
-    return {
-        "總任務件數": len(tasks),
-        "已完成件數": sum(1 for t in tasks if t.get("status") == "已完成"),
-        "進行中件數": sum(1 for t in tasks if t.get("status") == "進行中"),
-        "未開始件數": sum(1 for t in tasks if t.get("status") == "未開始"),
-        "落後任務件數": sum(1 for t in tasks if t.get("status") == "進行中" and (t.get("overdue_days") or 0) > 0),
-        "須優先決議件數": sum(1 for t in tasks if t.get("decide") == "待決議"),
-        "各專案總任務數": {p: sum(1 for t in tasks if t.get("proj") == p) for p in proj_names},
-        "各專案已完成數": {p: sum(1 for t in tasks if t.get("proj") == p and t.get("status") == "已完成") for p in proj_names},
-    }
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def generate_risk_summary(tasks_key: str, tasks: list, stats: dict) -> str:
-    """用 Gemini 產生 2-4 條重點風險摘要，不用使用者主動問。
-    用 st.cache_data 快取（依 tasks_key 分辨資料有沒有變），避免每次頁面重跑
-    （例如按個按鈕）都重新呼叫一次 Gemini，浪費額度也拖慢速度。
-    """
-    overdue_items = [t for t in tasks if t.get("status") == "進行中" and (t.get("overdue_days") or 0) > 0]
-    overdue_items.sort(key=lambda t: t.get("overdue_days") or 0, reverse=True)
-    decide_items = [t for t in tasks if t.get("decide") == "待決議"]
-
-    risk_input = {
-        "統計數字": stats,
-        "逾期任務_前10筆": [
-            {"專案": t.get("proj"), "任務": t.get("task"), "負責人": t.get("owner"), "逾期天數": t.get("overdue_days")}
-            for t in overdue_items[:10]
-        ],
-        "待決議任務": [
-            {"專案": t.get("proj"), "任務": t.get("task"), "負責人": t.get("owner")}
-            for t in decide_items[:10]
-        ],
-    }
-
-    sys_prompt = f"""你是 BPM Team 的專案風險分析助理。根據以下資料，用繁體中文寫出 2-4 條「真正值得注意」的風險重點，
-每條一行、簡潔有力，前面加上適當的 emoji（例如 ⚠️ 🔴 📌）。只寫真正有風險訊號的重點（例如某專案逾期特別集中、
-某人手上逾期任務特別多、待決議事項卡很久），如果資料顯示一切正常（沒有逾期、沒有待決議），就只回一句話說明目前狀況良好，
-不要硬湊風險出來。不要輸出任何 JSON，只輸出給人看的重點條列文字。
-
-資料：{json.dumps(risk_input, ensure_ascii=False)}"""
-
-    ok, result = call_gemini_with_retry(sys_prompt, [{"role": "user", "parts": [{"text": "請給我風險摘要"}]}], max_retries=1)
-    if not ok:
-        return f"（風險摘要暫時無法產生：{result}）"
-    return result
-
-
-def generate_weekly_report(tasks: list, stats: dict, today: date) -> str:
-    """產生一份可以直接複製貼到 Outlook / Teams 的週報文字。
-    不用快取（使用者按按鈕才會呼叫，本來就是低頻動作，且每次按都該反映最新狀態）。
-    """
-    week_ago = today - timedelta(days=7)
-    week_ahead = today + timedelta(days=7)
-
-    def _in_range(d_str, start, end):
-        d = _to_date(d_str)
-        return d is not None and start <= d <= end
-
-    done_this_week = [t for t in tasks if t.get("status") == "已完成" and _in_range(t.get("actual_end"), week_ago, today)]
-    overdue_now = [t for t in tasks if t.get("status") == "進行中" and (t.get("overdue_days") or 0) > 0]
-    overdue_now.sort(key=lambda t: t.get("overdue_days") or 0, reverse=True)
-    decide_pending = [t for t in tasks if t.get("decide") == "待決議"]
-    due_next_week = [t for t in tasks if t.get("status") != "已完成" and _in_range(t.get("end"), today, week_ahead)]
-
-    def _brief(items, limit=15):
-        return [
-            {"專案": t.get("proj"), "任務": t.get("task"), "負責人": t.get("owner"), "結束日": t.get("end"), "逾期天數": t.get("overdue_days")}
-            for t in items[:limit]
-        ]
-
-    report_input = {
-        "統計數字": stats,
-        "本週完成": _brief(done_this_week),
-        "目前逾期(進行中)": _brief(overdue_now),
-        "待決議事項": _brief(decide_pending),
-        "未來7天到期": _brief(due_next_week),
-    }
-
-    sys_prompt = f"""你是 BPM Team 的專案助理，請根據以下資料寫一份「週報」，用繁體中文，格式要能直接複製貼到 Outlook 郵件或 Teams 訊息裡使用（不要用 Markdown 的 # 標題語法，用純文字加上「【】」分段即可）。
-
-結構請包含：
-【本週摘要】整體進度一句話總結（引用統計數字，不要自己數）
-【本週完成】列出本週完成的任務（專案+任務名稱，簡短）；若沒有就寫「本週沒有任務完成」
-【逾期提醒】列出目前逾期中的任務，依逾期天數排序，標出負責人；若沒有就寫「目前沒有逾期任務」
-【待決議事項】列出還沒決議的項目跟負責人；若沒有就省略這段
-【未來一週注意】列出未來 7 天內到期、還沒完成的任務，提醒負責人留意
-
-語氣專業、簡潔，不要加多餘的客套話或表情符號堆疊（最多在標題前用 1 個 emoji 點綴）。
-
-資料快照日期：{today.isoformat()}
-資料：{json.dumps(report_input, ensure_ascii=False)}"""
-
-    ok, result = call_gemini_with_retry(sys_prompt, [{"role": "user", "parts": [{"text": "請幫我產生本週的週報"}]}], max_retries=1)
-    if not ok:
-        return f"⚠️ 週報產生失敗：{result}"
-    return result
-
-
 with st.spinner("從 Jira 載入資料中..."):
     tasks, errors = fetch_all_tasks()
 
@@ -542,27 +435,6 @@ if not tasks:
     st.stop()
 
 today_str = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
-
-# ── 主動風險摘要：不用開聊天室、不用主動問，就會自動顯示 ──
-_stats = compute_stats(tasks)
-# 用任務清單的內容做快取鍵，資料真的變了（例如按了更新資料）才會重新呼叫 Gemini，
-# 否則使用者點其他按鈕造成的頁面重跑，不會浪費一次 Gemini 呼叫額度。
-_tasks_key = json.dumps(_stats, sort_keys=True, ensure_ascii=False)
-with st.spinner("正在產生風險摘要..."):
-    _risk_summary = generate_risk_summary(_tasks_key, tasks, _stats)
-with st.container(border=True):
-    st.markdown(f"**🔎 AI 風險摘要**（資料快照 {today_str}）")
-    st.markdown(_risk_summary)
-
-# ── 週報產生（按鈕在最上面按鈕列，這裡處理點擊後的產生與顯示）──
-if gen_report_clicked:
-    with st.spinner("正在產生週報..."):
-        st.session_state.weekly_report = generate_weekly_report(tasks, _stats, date.today())
-
-if st.session_state.weekly_report:
-    with st.container(border=True):
-        st.markdown("**📄 週報（可直接複製貼到 Outlook / Teams）**")
-        st.code(st.session_state.weekly_report, language=None)
 
 tasks_json = json.dumps(tasks, ensure_ascii=False)
 # 防護：欄位內容若剛好包含 "</script>"，未跳脫會提前關閉整段 <script>，
@@ -612,34 +484,22 @@ if st.session_state.show_chat:
             unsafe_allow_html=True,
         )
 
-        # 確認更新的 UI（同時支援單筆 action:"update" 跟批次 action:"batch_update"）
+        # 確認更新的 UI
         if st.session_state.pending_update:
             pu = st.session_state.pending_update
-            items = pu.get("items") if pu.get("action") == "batch_update" else [pu]
-            item_lines = "\n".join(f"- **{it['task']}**：{it['description']}" for it in items)
-            st.warning(f"**確認修改（共 {len(items)} 筆）：**\n\n{item_lines}")
+            st.warning(f"**確認修改：**\n\n任務：**{pu['task']}**（{pu['issue_key']}）\n\n修改內容：{pu['description']}")
             col_y, col_n = st.columns(2)
             with col_y:
                 if st.button("✅ 確認", use_container_width=True):
-                    all_errs = []
-                    success_lines = []
-                    for it in items:
-                        errs = update_jira_issue(it["issue_key"], it["updates"])
-                        if errs:
-                            all_errs.append(f"{it['task']}：{'; '.join(errs)}")
-                        else:
-                            success_lines.append(f"✅ **{it['task']}**：{it['description']}")
-                    if all_errs:
-                        st.error("以下項目更新失敗：\n" + "\n".join(all_errs))
-                    if success_lines:
-                        st.success(f"成功更新 {len(success_lines)} 筆！")
-                        st.session_state.ad_msg.append({"role": "assistant", "content": "\n".join(success_lines)})
-                    if not all_errs:
+                    errs = update_jira_issue(pu["issue_key"], pu["updates"])
+                    if errs:
+                        st.error("\n".join(errs))
+                    else:
+                        st.success("✅ 更新成功！")
                         st.session_state.pending_update = None
+                        st.session_state.ad_msg.append({"role": "assistant", "content": f"✅ 已成功更新 **{pu['task']}**：{pu['description']}"})
                         st.cache_data.clear()
                         st.rerun()
-                    else:
-                        st.session_state.pending_update = None
             with col_n:
                 if st.button("❌ 取消", use_container_width=True):
                     st.session_state.pending_update = None
@@ -674,9 +534,28 @@ if st.session_state.show_chat:
                 "進度說明": t.get("prog_note", ""),
             } for t in tasks], ensure_ascii=False)
 
-            # 統計類數字用共用的 compute_stats() 算，跟自動風險摘要、Dashboard KPI 是同一套邏輯，
-            # 不會有「聊天室講的數字」跟「畫面上顯示的數字」對不上的情況。
-            stats_summary = json.dumps(compute_stats(tasks), ensure_ascii=False)
+            # 統計類數字（總數、已完成數...）先用 Python 精確算好，不要讓語言模型自己
+            # 從一大包任務清單裡「數」——任務一多，AI 用數的很容易數錯或用估的，
+            # 這是語言模型本身不擅長精確計數的通病，先把答案算好直接告訴它最可靠。
+            _n_total = len(tasks)
+            _n_done = sum(1 for t in tasks if t.get("status") == "已完成")
+            _n_inprog = sum(1 for t in tasks if t.get("status") == "進行中")
+            _n_todo = sum(1 for t in tasks if t.get("status") == "未開始")
+            _n_overdue = sum(1 for t in tasks if t.get("status") == "進行中" and (t.get("overdue_days") or 0) > 0)
+            _n_decide = sum(1 for t in tasks if t.get("decide") == "待決議")
+            _proj_names = sorted(set(t.get("proj", "") for t in tasks))
+            _n_by_proj = {p: sum(1 for t in tasks if t.get("proj") == p) for p in _proj_names}
+            _done_by_proj = {p: sum(1 for t in tasks if t.get("proj") == p and t.get("status") == "已完成") for p in _proj_names}
+            stats_summary = json.dumps({
+                "總任務件數": _n_total,
+                "已完成件數": _n_done,
+                "進行中件數": _n_inprog,
+                "未開始件數": _n_todo,
+                "落後任務件數": _n_overdue,
+                "須優先決議件數": _n_decide,
+                "各專案總任務數": _n_by_proj,
+                "各專案已完成數": _done_by_proj,
+            }, ensure_ascii=False)
 
             _sys = f"""你是 BPM Team 的專案進度助理，可以回答問題也可以協助更新 Jira 任務資料。
 資料快照：{today_str}
@@ -691,7 +570,7 @@ if st.session_state.show_chat:
 
 【回答規則】
 1. 若使用者在問問題，用繁體中文簡潔回答。回答時不要顯示 Jira issue key（如 BPM-8、AHP-4 等），只用專案名稱和任務名稱表示。
-2. 若使用者要修改「單一」任務資料，請回傳以下 JSON 格式（只回傳 JSON，不要其他文字）：
+2. 若使用者要修改任務資料，請回傳以下 JSON 格式（只回傳 JSON，不要其他文字）：
 {{
   "action": "update",
   "issue_key": "BPM-X",
@@ -701,23 +580,12 @@ if st.session_state.show_chat:
     "狀態": "已完成"
   }}
 }}
-3. 若使用者要求「批次」修改多筆任務（例如「把所有逾期的進行中任務都標記須決議」「把 XX 專案還沒開始的都改成進行中」），
-   請先自己從上面的任務清單裡篩選出符合條件的任務，再回傳以下批次格式（同樣只回傳 JSON，不要其他文字）：
-{{
-  "action": "batch_update",
-  "description": "整體修改說明，例如：把 3 筆逾期任務標記為須決議",
-  "items": [
-    {{"issue_key": "BPM-X", "task": "任務名稱1", "description": "把狀態改成已完成", "updates": {{"狀態": "已完成"}}}},
-    {{"issue_key": "AHP-Y", "task": "任務名稱2", "description": "把須決議改成待決議", "updates": {{"須決議": "待決議"}}}}
-  ]
-}}
-   批次一次最多處理 20 筆，超過的話請告訴使用者篩選結果太多，請他縮小條件。
-4. 嚴格規則：
-   - 單筆修改（action: update）只能修改使用者明確指定的那一個任務。
-   - 批次修改（action: batch_update）裡的每一筆，都必須是根據使用者說的條件、從上面任務清單篩選出來的真實任務，不能捏造不存在的 issue_key。
+3. 嚴格規則：
+   - 只修改使用者明確指定的那一個任務，絕對不能同時修改其他任務。
    - "進度" 欄位由系統根據狀態自動計算（已完成=100%，未開始=0%，進行中=50%），不需要也不能單獨修改進度。
    - 可修改的欄位只有：狀態（未開始/進行中/已完成）、負責人、結束日（YYYY-MM-DD）、進度說明、優先、須決議。
-5. 若找不到符合條件的任務請說明，不要硬湊。"""
+   - 一次只處理一個任務的修改指令，若使用者提到多個任務請分次確認。
+4. 若找不到對應任務請說明。"""
 
             _reply = "抱歉，發生錯誤。"
             with chat_container:
@@ -732,19 +600,13 @@ if st.session_state.show_chat:
                             st.markdown(_reply)
                         else:
                             _reply = result
-                            # 嘗試解析是否為更新指令（單筆 update 或批次 batch_update）
+                            # 嘗試解析是否為更新指令
                             try:
                                 _clean = _reply.strip().strip("```json").strip("```").strip()
                                 _cmd = json.loads(_clean)
                                 if _cmd.get("action") == "update":
                                     st.session_state.pending_update = _cmd
                                     _reply = f"我準備幫你修改 **{_cmd['task']}**：{_cmd['description']}\n\n請確認是否執行？"
-                                elif _cmd.get("action") == "batch_update":
-                                    _items = _cmd.get("items", [])
-                                    st.session_state.pending_update = _cmd
-                                    _preview = "\n".join(f"- {it['task']}：{it['description']}" for it in _items[:10])
-                                    _more = f"\n...等共 {len(_items)} 筆" if len(_items) > 10 else ""
-                                    _reply = f"我準備批次修改 {len(_items)} 筆任務（{_cmd.get('description','')}）：\n\n{_preview}{_more}\n\n請確認是否執行？"
                             except Exception:
                                 pass  # 不是 JSON，當一般回答處理
 
